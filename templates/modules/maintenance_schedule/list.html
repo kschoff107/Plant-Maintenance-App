@@ -273,9 +273,9 @@ document.addEventListener('DOMContentLoaded', function() {
             th.classList.remove('sort-asc', 'sort-desc');
             if (th.getAttribute('data-sort') === column) {
                 th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
-                if (icon) icon.textContent = currentSort.direction === 'asc' ? '\u25B2' : '\u25BC';
+                if (icon) icon.innerHTML = currentSort.direction === 'asc' ? '&#8593;' : '&#8595;';
             } else {
-                if (icon) icon.textContent = '\u2195';
+                if (icon) icon.innerHTML = '&#8597;';
             }
         });
 
