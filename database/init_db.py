@@ -175,6 +175,54 @@ def init_database():
         )
     ''')
 
+    # Create vendors table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vendors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vendor_id TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            contact_name TEXT,
+            email TEXT,
+            phone TEXT,
+            address TEXT,
+            status TEXT DEFAULT 'Active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Create purchase_orders table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS purchase_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            po_number TEXT UNIQUE NOT NULL,
+            vendor_id INTEGER NOT NULL,
+            order_date TEXT,
+            expected_delivery_date TEXT,
+            status TEXT DEFAULT 'Open',
+            total_amount REAL DEFAULT 0,
+            notes TEXT,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (vendor_id) REFERENCES vendors (id),
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        )
+    ''')
+
+    # Create purchase_order_lines table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS purchase_order_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchase_order_id INTEGER NOT NULL,
+            spare_part_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL,
+            ordering_unit TEXT DEFAULT 'EA',
+            unit_price REAL DEFAULT 0,
+            line_total REAL DEFAULT 0,
+            FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders (id),
+            FOREIGN KEY (spare_part_id) REFERENCES spare_parts (id)
+        )
+    ''')
+
     # Check if admin user exists, if not create default admin
     cursor.execute('SELECT id FROM users WHERE username = ?', ('Admin',))
     if cursor.fetchone() is None:

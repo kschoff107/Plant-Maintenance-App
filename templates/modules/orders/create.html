@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Create Purchase Order - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('orders.index') }}" class="btn btn-back">
+            &#8592; Back to Orders
+        </a>
+    </div>
+
+    <div class="form-container" style="max-width: 900px;">
+        <div class="form-header">
+            <span style="font-size: 3rem;">&#128230;</span>
+            <h1>Create Purchase Order</h1>
+        </div>
+
+        <form method="POST" class="data-form" id="po-form">
+            <!-- Header Section -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="po_number">PO Number</label>
+                    <input type="text" id="po_number" value="{{ po_number }}" readonly
+                           style="background-color: #e2e8f0; cursor: not-allowed;">
+                </div>
+                <div class="form-group">
+                    <label for="order_date">Order Date *</label>
+                    <input type="date" name="order_date" id="order_date" value="{{ today }}" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="vendor_id">Vendor *</label>
+                    <select name="vendor_id" id="vendor_id" required>
+                        <option value="">-- Select Vendor --</option>
+                        {% for vendor in vendors %}
+                        <option value="{{ vendor.id }}">{{ vendor.vendor_id }} - {{ vendor.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="expected_delivery_date">Expected Delivery Date</label>
+                    <input type="date" name="expected_delivery_date" id="expected_delivery_date">
+                </div>
+            </div>
+
+            <!-- Line Items Section -->
+            <div class="line-items-section">
+                <h3 style="margin: 1.5rem 0 1rem 0; color: var(--primary-dark); border-bottom: 2px solid var(--background-dark); padding-bottom: 0.5rem;">
+                    Line Items
+                </h3>
+
+                <div class="add-line-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="spare_part_select">Spare Part</label>
+                        <select id="spare_part_select">
+                            <option value="">-- Select Spare Part --</option>
+                            {% for part in spare_parts %}
+                            <option value="{{ part.id }}"
+                                    data-desc="{{ part.description }}"
+                                    data-vendor-desc="{{ part.vendor_description or '' }}">
+                                {{ part.id }} - {{ part.description }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="quantity_input">Quantity</label>
+                        <input type="number" id="quantity_input" min="1" value="1">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="unit_select">Unit</label>
+                        <select id="unit_select">
+                            {% for unit in ordering_units %}
+                            <option value="{{ unit }}">{{ unit }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="price_input">Price/Unit</label>
+                        <input type="number" id="price_input" min="0" step="0.01" value="0.00">
+                    </div>
+                    <div class="form-group" style="flex: 0; align-self: flex-end;">
+                        <button type="button" class="btn btn-primary" onclick="addLineItem()">Add</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="margin-top: 1rem; max-height: none;">
+                    <table class="data-table" id="line-items-table" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">Part #</th>
+                                <th>Description</th>
+                                <th>Vendor Description</th>
+                                <th style="width: 80px;">Qty</th>
+                                <th style="width: 70px;">Unit</th>
+                                <th style="width: 100px;">Price/Unit</th>
+                                <th style="width: 100px;">Total</th>
+                                <th style="width: 80px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="line-items-tbody"></tbody>
+                        <tfoot>
+                            <tr style="background-color: var(--primary-dark); color: white; font-weight: 600;">
+                                <td colspan="6" style="text-align: right;">Grand Total:</td>
+                                <td id="grand-total">$0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <p id="no-items-message" style="text-align: center; color: var(--text-muted); padding: 1rem;">
+                    No line items added yet. Use the form above to add spare parts.
+                </p>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label for="notes">Notes</label>
+                <textarea name="notes" id="notes" rows="3" placeholder="Optional notes..."></textarea>
+            </div>
+
+            <!-- Hidden field for line items JSON -->
+            <input type="hidden" name="line_items" id="line_items_json" value="[]">
+
+            <div class="form-actions">
+                <a href="{{ url_for('orders.index') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Purchase Order</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.add-line-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    padding: 1rem;
+    background-color: var(--background);
+    border-radius: var(--border-radius);
+    flex-wrap: wrap;
+}
+.add-line-row .form-group {
+    margin-bottom: 0;
+}
+.add-line-row .form-group label {
+    font-size: 0.875rem;
+}
+.add-line-row .form-group input,
+.add-line-row .form-group select {
+    padding: 0.5rem 0.75rem;
+}
+#line-items-table tfoot td {
+    padding: 0.75rem;
+}
+</style>
+
+<script>
+let lineItems = [];
+
+function addLineItem() {
+    const partSelect = document.getElementById('spare_part_select');
+    const qtyInput = document.getElementById('quantity_input');
+    const unitSelect = document.getElementById('unit_select');
+    const priceInput = document.getElementById('price_input');
+
+    const partId = partSelect.value;
+    const qty = parseInt(qtyInput.value) || 0;
+    const unit = unitSelect.value;
+    const price = parseFloat(priceInput.value) || 0;
+
+    if (!partId) {
+        alert('Please select a spare part.');
+        return;
+    }
+    if (qty <= 0) {
+        alert('Please enter a valid quantity.');
+        return;
+    }
+
+    const selectedOption = partSelect.options[partSelect.selectedIndex];
+    const partDesc = selectedOption.dataset.desc;
+    const vendorDesc = selectedOption.dataset.vendorDesc || '';
+    const lineTotal = qty * price;
+
+    // Check for duplicate part
+    const existingIndex = lineItems.findIndex(item => item.spare_part_id == partId);
+    if (existingIndex >= 0) {
+        // Update existing line
+        lineItems[existingIndex].quantity += qty;
+        lineItems[existingIndex].unit_price = price;
+        lineItems[existingIndex].ordering_unit = unit;
+        lineItems[existingIndex].line_total = lineItems[existingIndex].quantity * price;
+    } else {
+        // Add new line
+        lineItems.push({
+            spare_part_id: partId,
+            spare_part_number: partId,
+            description: partDesc,
+            vendor_description: vendorDesc,
+            quantity: qty,
+            ordering_unit: unit,
+            unit_price: price,
+            line_total: lineTotal
+        });
+    }
+
+    updateLineItemsTable();
+
+    // Reset inputs
+    partSelect.value = '';
+    qtyInput.value = '1';
+    priceInput.value = '0.00';
+}
+
+function removeLineItem(index) {
+    lineItems.splice(index, 1);
+    updateLineItemsTable();
+}
+
+function updateLineItemsTable() {
+    const tbody = document.getElementById('line-items-tbody');
+    const table = document.getElementById('line-items-table');
+    const noItemsMsg = document.getElementById('no-items-message');
+    const grandTotalEl = document.getElementById('grand-total');
+    const hiddenField = document.getElementById('line_items_json');
+
+    tbody.innerHTML = '';
+
+    if (lineItems.length === 0) {
+        table.style.display = 'none';
+        noItemsMsg.style.display = 'block';
+        grandTotalEl.textContent = '$0.00';
+    } else {
+        table.style.display = 'table';
+        noItemsMsg.style.display = 'none';
+
+        let grandTotal = 0;
+
+        lineItems.forEach((item, index) => {
+            grandTotal += item.line_total;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.spare_part_number}</td>
+                <td>${item.description}</td>
+                <td>${item.vendor_description || '-'}</td>
+                <td>${item.quantity}</td>
+                <td>${item.ordering_unit}</td>
+                <td>$${item.unit_price.toFixed(2)}</td>
+                <td>$${item.line_total.toFixed(2)}</td>
+                <td>
+                    <button type="button" class="btn btn-small" style="background-color: var(--error); color: white;" onclick="removeLineItem(${index})">
+                        Remove
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        grandTotalEl.textContent = '$' + grandTotal.toFixed(2);
+    }
+
+    // Update hidden JSON field
+    hiddenField.value = JSON.stringify(lineItems);
+}
+
+// Form validation
+document.getElementById('po-form').addEventListener('submit', function(e) {
+    if (lineItems.length === 0) {
+        e.preventDefault();
+        alert('Please add at least one line item before saving.');
+    }
+});
+</script>
+{% endblock %}

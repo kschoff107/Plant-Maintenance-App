@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{{ po.po_number }} - Purchase Order Details{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('orders.open_list') }}" class="btn btn-back">
+            &#8592; Back to Open POs
+        </a>
+    </div>
+
+    <div class="detail-container" style="max-width: 900px;">
+        <div class="detail-header">
+            <span style="font-size: 3rem;">&#128230;</span>
+            <h1>Purchase Order Details</h1>
+            <p class="detail-id">{{ po.po_number }}</p>
+            <span class="status-badge status-po-{{ po.status|lower|replace(' ', '-') }}" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                {{ po.status }}
+            </span>
+        </div>
+
+        <!-- Header Info -->
+        <div class="detail-card">
+            <div class="detail-row">
+                <span class="detail-label">PO Number</span>
+                <span class="detail-value">{{ po.po_number }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Vendor</span>
+                <span class="detail-value">{{ vendor_code }} - {{ po.vendor_name or 'N/A' }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Order Date</span>
+                <span class="detail-value">{{ po.order_date or '-' }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Expected Delivery</span>
+                <span class="detail-value">{{ po.expected_delivery_date or '-' }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Created By</span>
+                <span class="detail-value">{{ po.created_by_name or 'N/A' }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Created At</span>
+                <span class="detail-value">{{ po.created_at or '-' }}</span>
+            </div>
+            {% if po.notes %}
+            <div class="detail-row">
+                <span class="detail-label">Notes</span>
+                <span class="detail-value">{{ po.notes }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Line Items -->
+        <h3 style="margin: 2rem 0 1rem 0; color: var(--primary-dark); border-bottom: 2px solid var(--background-dark); padding-bottom: 0.5rem;">
+            Line Items
+        </h3>
+
+        <div class="table-responsive" style="max-height: none;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">Part #</th>
+                        <th>Description</th>
+                        <th>Vendor Description</th>
+                        <th style="width: 70px;">Qty</th>
+                        <th style="width: 60px;">Unit</th>
+                        <th style="width: 100px;">Price/Unit</th>
+                        <th style="width: 100px;">Line Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in line_items %}
+                    <tr>
+                        <td>{{ line.spare_part_number }}</td>
+                        <td>{{ line.spare_part_description or '-' }}</td>
+                        <td>{{ line.vendor_description or '-' }}</td>
+                        <td>{{ line.quantity }}</td>
+                        <td>{{ line.ordering_unit }}</td>
+                        <td>${{ "%.2f"|format(line.unit_price or 0) }}</td>
+                        <td>${{ "%.2f"|format(line.line_total or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="background-color: var(--primary-dark); color: white; font-weight: 600;">
+                        <td colspan="6" style="text-align: right; padding: 0.75rem;">Grand Total:</td>
+                        <td style="padding: 0.75rem;">${{ "%.2f"|format(po.total_amount or 0) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="detail-actions" style="gap: 1rem;">
+            <a href="{{ url_for('orders.open_list') }}" class="btn btn-secondary">Back to List</a>
+            {% if po.status == 'Open' %}
+            <a href="{{ url_for('orders.change', po_id=po.id) }}" class="btn btn-warning">Edit</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.status-po-open {
+    background-color: var(--primary-light);
+    color: white;
+}
+.status-po-sent {
+    background-color: var(--primary-medium);
+    color: white;
+}
+.status-po-partially-received {
+    background-color: var(--warning);
+    color: white;
+}
+.status-po-received {
+    background-color: var(--success);
+    color: white;
+}
+.status-po-cancelled {
+    background-color: #718096;
+    color: white;
+}
+</style>
+{% endblock %}

@@ -3,7 +3,8 @@ from flask_login import LoginManager
 from config import Config
 from database.init_db import init_database
 from routes import (auth_bp, main_bp, spare_parts_bp, equipment_bp, location_bp,
-                    work_orders_bp, maintenance_schedules_bp, meter_readings_bp, get_user_by_id)
+                    work_orders_bp, maintenance_schedules_bp, meter_readings_bp,
+                    orders_bp, get_user_by_id)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -28,6 +29,7 @@ app.register_blueprint(location_bp)
 app.register_blueprint(work_orders_bp)
 app.register_blueprint(maintenance_schedules_bp)
 app.register_blueprint(meter_readings_bp)
+app.register_blueprint(orders_bp)
 
 # Initialize database on startup
 with app.app_context():
