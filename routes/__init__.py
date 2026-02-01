@@ -7,3 +7,5 @@ from .work_orders import work_orders_bp
 from .maintenance_schedules import maintenance_schedules_bp
 from .meter_readings import meter_readings_bp
 from .orders import orders_bp
+from .master_data import master_data_bp
+from .vendors import vendors_bp

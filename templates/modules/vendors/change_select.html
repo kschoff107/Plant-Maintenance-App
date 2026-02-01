@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Select Vendor to Edit - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('vendors.master_data') }}" class="btn btn-back">
+            &#8592; Back to Master Data
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Select Vendor to Edit</h1>
+            <p>Click on a vendor to edit its details</p>
+        </div>
+
+        {% if vendors %}
+        <div class="search-filter-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search vendors..." class="search-input">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="vendor-table">
+                <thead>
+                    <tr>
+                        <th>Vendor ID</th>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vendor in vendors %}
+                    <tr>
+                        <td>{{ vendor.vendor_id }}</td>
+                        <td>{{ vendor.name }}</td>
+                        <td>{{ vendor.contact_name or '-' }}</td>
+                        <td>
+                            <span class="status-badge {% if vendor.status == 'Active' %}status-active{% else %}status-inactive{% endif %}">
+                                {{ vendor.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('vendors.change', vendor_id=vendor.id) }}" class="btn btn-small btn-warning">Edit</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span style="font-size: 3rem;">&#127970;</span>
+            <p>No vendors found.</p>
+            <a href="{{ url_for('vendors.add') }}" class="btn btn-primary">Add First Vendor</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const table = document.getElementById('vendor-table');
+    if (!searchInput || !table) return;
+
+    const tbody = table.querySelector('tbody');
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        const rows = tbody.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            let match = false;
+            for (let i = 0; i < cells.length - 1; i++) {
+                if (cells[i].textContent.toLowerCase().includes(searchTerm)) {
+                    match = true;
+                    break;
+                }
+            }
+            row.style.display = match ? '' : 'none';
+        });
+    });
+});
+</script>
+{% endblock %}

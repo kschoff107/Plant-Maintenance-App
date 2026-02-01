@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Add Vendor - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('vendors.master_data') }}" class="btn btn-back">
+            &#8592; Back to Master Data
+        </a>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <span style="font-size: 3rem;">&#127970;</span>
+            <h1>Add New Vendor</h1>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-group">
+                <label for="vendor_id">Vendor ID</label>
+                <input type="text" id="vendor_id" value="{{ vendor_id }}" readonly
+                       style="background-color: #e2e8f0; cursor: not-allowed;">
+            </div>
+
+            <div class="form-group">
+                <label for="name">Vendor Name *</label>
+                <input type="text" name="name" id="name" required
+                       placeholder="Enter vendor name">
+            </div>
+
+            <div class="form-group">
+                <label for="contact_name">Contact Name</label>
+                <input type="text" name="contact_name" id="contact_name"
+                       placeholder="Primary contact person">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" name="email" id="email"
+                           placeholder="vendor@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone</label>
+                    <input type="text" name="phone" id="phone"
+                           placeholder="(555) 123-4567">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="address">Address</label>
+                <textarea name="address" id="address" rows="2"
+                          placeholder="Street, City, State, ZIP"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select name="status" id="status">
+                    {% for status in statuses %}
+                    <option value="{{ status }}" {% if status == 'Active' %}selected{% endif %}>
+                        {{ status }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('vendors.master_data') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Vendor</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
