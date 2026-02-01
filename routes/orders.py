@@ -359,3 +359,133 @@ def get_spare_part_info(part_id):
         'description': part.description,
         'vendor_description': part.vendor_description or ''
     })
+
+
+@orders_bp.route('/view/<int:po_id>/receive', methods=['GET', 'POST'])
+@login_required
+def goods_receipt(po_id):
+    """Post goods receipt for a purchase order"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get PO header
+    cursor.execute('''
+        SELECT po.*, v.name as vendor_name, v.vendor_id as vendor_code
+        FROM purchase_orders po
+        LEFT JOIN vendors v ON po.vendor_id = v.id
+        WHERE po.id = ?
+    ''', (po_id,))
+    po_row = cursor.fetchone()
+
+    if po_row is None:
+        conn.close()
+        flash('Purchase order not found.', 'error')
+        return redirect(url_for('orders.open_list'))
+
+    purchase_order = PurchaseOrder.from_row(po_row)
+
+    if purchase_order.status in ['Received', 'Cancelled']:
+        conn.close()
+        flash('Cannot receive goods for this purchase order.', 'error')
+        return redirect(url_for('orders.view_detail', po_id=po_id))
+
+    if request.method == 'POST':
+        line_id = request.form.get('line_id', type=int)
+        receive_qty = request.form.get('quantity', type=int, default=0)
+
+        if not line_id or receive_qty <= 0:
+            flash('Please enter a valid quantity to receive.', 'error')
+        else:
+            # Get line item details
+            cursor.execute('''
+                SELECT pol.*, sp.quantity_available
+                FROM purchase_order_lines pol
+                JOIN spare_parts sp ON pol.spare_part_id = sp.id
+                WHERE pol.id = ? AND pol.purchase_order_id = ?
+            ''', (line_id, po_id))
+            line_row = cursor.fetchone()
+
+            if line_row:
+                current_received = line_row['quantity_received'] or 0
+                ordered_qty = line_row['quantity']
+                remaining = ordered_qty - current_received
+
+                if receive_qty > remaining:
+                    flash(f'Cannot receive more than remaining quantity ({remaining}).', 'error')
+                else:
+                    try:
+                        # Update line item quantity_received
+                        new_received = current_received + receive_qty
+                        cursor.execute('''
+                            UPDATE purchase_order_lines
+                            SET quantity_received = ?
+                            WHERE id = ?
+                        ''', (new_received, line_id))
+
+                        # Update spare parts inventory
+                        spare_part_id = line_row['spare_part_id']
+                        current_stock = line_row['quantity_available'] or 0
+                        new_stock = current_stock + receive_qty
+                        cursor.execute('''
+                            UPDATE spare_parts
+                            SET quantity_available = ?
+                            WHERE id = ?
+                        ''', (new_stock, spare_part_id))
+
+                        # Check if all lines are fully received
+                        cursor.execute('''
+                            SELECT SUM(quantity) as total_ordered,
+                                   SUM(quantity_received) as total_received
+                            FROM purchase_order_lines
+                            WHERE purchase_order_id = ?
+                        ''', (po_id,))
+                        totals = cursor.fetchone()
+                        total_ordered = totals['total_ordered'] or 0
+                        total_received = (totals['total_received'] or 0) + receive_qty
+
+                        # Update PO status
+                        if total_received >= total_ordered:
+                            new_status = 'Received'
+                        elif total_received > 0:
+                            new_status = 'Partially Received'
+                        else:
+                            new_status = purchase_order.status
+
+                        if new_status != purchase_order.status:
+                            cursor.execute('''
+                                UPDATE purchase_orders SET status = ? WHERE id = ?
+                            ''', (new_status, po_id))
+
+                        conn.commit()
+                        flash(f'Received {receive_qty} unit(s). Inventory updated.', 'success')
+
+                        if new_status == 'Received':
+                            flash('Purchase order fully received.', 'info')
+                            conn.close()
+                            return redirect(url_for('orders.view_detail', po_id=po_id))
+
+                    except Exception as e:
+                        flash(f'Error posting goods receipt: {str(e)}', 'error')
+            else:
+                flash('Line item not found.', 'error')
+
+    # Get line items with remaining quantities
+    cursor.execute('''
+        SELECT pol.*, sp.id as spare_part_number, sp.description as spare_part_description,
+               sp.vendor_description, sp.quantity_available as current_stock
+        FROM purchase_order_lines pol
+        LEFT JOIN spare_parts sp ON pol.spare_part_id = sp.id
+        WHERE pol.purchase_order_id = ?
+        ORDER BY pol.id
+    ''', (po_id,))
+    line_rows = cursor.fetchall()
+    conn.close()
+
+    line_items = []
+    for row in line_rows:
+        line = PurchaseOrderLine.from_row(row)
+        line.current_stock = row['current_stock'] or 0
+        line_items.append(line)
+
+    return render_template('modules/orders/goods_receipt.html',
+                           po=purchase_order, line_items=line_items)

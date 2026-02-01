@@ -215,6 +215,7 @@ def init_database():
             purchase_order_id INTEGER NOT NULL,
             spare_part_id INTEGER NOT NULL,
             quantity INTEGER NOT NULL,
+            quantity_received INTEGER DEFAULT 0,
             ordering_unit TEXT DEFAULT 'EA',
             unit_price REAL DEFAULT 0,
             line_total REAL DEFAULT 0,
@@ -222,6 +223,12 @@ def init_database():
             FOREIGN KEY (spare_part_id) REFERENCES spare_parts (id)
         )
     ''')
+
+    # Add quantity_received column if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE purchase_order_lines ADD COLUMN quantity_received INTEGER DEFAULT 0')
+    except:
+        pass  # Column already exists
 
     # Check if admin user exists, if not create default admin
     cursor.execute('SELECT id FROM users WHERE username = ?', ('Admin',))

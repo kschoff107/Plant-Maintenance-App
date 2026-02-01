@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Goods Receipt - {{ po.po_number }}{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('orders.view_detail', po_id=po.id) }}" class="btn btn-back">
+            &#8592; Back to PO Details
+        </a>
+    </div>
+
+    <div class="form-container" style="max-width: 900px;">
+        <div class="form-header">
+            <span style="font-size: 3rem;">&#128230;</span>
+            <h1>Goods Receipt</h1>
+            <p class="form-subtitle">{{ po.po_number }}</p>
+            <span class="status-badge status-po-{{ po.status|lower|replace(' ', '-') }}" style="margin-top: 0.5rem;">
+                {{ po.status }}
+            </span>
+        </div>
+
+        <!-- Line Items to Receive -->
+        <div class="table-responsive" style="max-height: none; margin-top: 1.5rem;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">Part #</th>
+                        <th>Description</th>
+                        <th style="width: 80px;">Ordered</th>
+                        <th style="width: 80px;">Received</th>
+                        <th style="width: 80px;">Remaining</th>
+                        <th style="width: 90px;">Current Stock</th>
+                        <th style="width: 200px;">Receive</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in line_items %}
+                    {% set remaining = line.quantity - line.quantity_received %}
+                    <tr class="{% if remaining == 0 %}row-complete{% endif %}">
+                        <td>{{ line.spare_part_number }}</td>
+                        <td>{{ line.spare_part_description or '-' }}</td>
+                        <td>{{ line.quantity }}</td>
+                        <td>{{ line.quantity_received }}</td>
+                        <td>
+                            {% if remaining > 0 %}
+                            <span style="color: var(--warning); font-weight: 600;">{{ remaining }}</span>
+                            {% else %}
+                            <span style="color: var(--success); font-weight: 600;">0</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ line.current_stock }}</td>
+                        <td>
+                            {% if remaining > 0 %}
+                            <form method="POST" class="receive-form">
+                                <input type="hidden" name="line_id" value="{{ line.id }}">
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="number" name="quantity" min="1" max="{{ remaining }}"
+                                           value="{{ remaining }}" style="width: 70px; padding: 0.25rem 0.5rem;">
+                                    <button type="submit" class="btn btn-small btn-primary">Receive</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <span class="status-badge status-ok">Complete</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-actions" style="margin-top: 2rem;">
+            <a href="{{ url_for('orders.view_detail', po_id=po.id) }}" class="btn btn-secondary">Back to PO</a>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-po-open {
+    background-color: var(--primary-light);
+    color: white;
+}
+.status-po-sent {
+    background-color: var(--primary-medium);
+    color: white;
+}
+.status-po-partially-received {
+    background-color: var(--warning);
+    color: white;
+}
+.status-po-received {
+    background-color: var(--success);
+    color: white;
+}
+.row-complete {
+    background-color: #c6f6d5 !important;
+}
+.row-complete:hover {
+    background-color: #9ae6b4 !important;
+}
+.receive-form {
+    margin: 0;
+}
+</style>
+{% endblock %}
