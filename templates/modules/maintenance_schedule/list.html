@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}All Schedules - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('maintenance_schedules.index') }}" class="btn btn-back">
+            &#8592; Back to Maintenance Schedule
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#128203;</span>
+            <h1>All Maintenance Schedules</h1>
+            <p class="list-subtitle"><span id="visible-count">{{ schedules|length }}</span> of {{ schedules|length }} schedule(s)</p>
+        </div>
+
+        <!-- Search and Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label for="search-schedule-id">Search Schedule ID:</label>
+                <input type="text" id="search-schedule-id" placeholder="e.g. SCH-0001" class="filter-input">
+            </div>
+            <div class="filter-group">
+                <label for="search-name">Search Name:</label>
+                <input type="text" id="search-name" placeholder="e.g. Daily Inspection" class="filter-input">
+            </div>
+            <div class="filter-group">
+                <label for="filter-type">Type:</label>
+                <select id="filter-type" class="filter-select">
+                    <option value="">All Types</option>
+                    <option value="time-based">Time-Based</option>
+                    <option value="meter-based">Meter-Based</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-priority">Priority:</label>
+                <select id="filter-priority" class="filter-select">
+                    <option value="">All Priorities</option>
+                    <option value="Emergency">Emergency</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-status">Status:</label>
+                <select id="filter-status" class="filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            <button id="clear-filters" class="btn btn-secondary btn-sm">Clear Filters</button>
+        </div>
+
+        {% if schedules %}
+        <table class="data-table sortable-table" id="schedules-table">
+            <thead>
+                <tr>
+                    <th data-sort="schedule-id" class="sortable">Schedule ID <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="name" class="sortable">Name <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="equipment" class="sortable">Equipment <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="type" class="sortable">Type <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="frequency" class="sortable">Frequency / Interval <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="next-due" class="sortable">Next Due <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="priority" class="sortable">Priority <span class="sort-icon">&#8597;</span></th>
+                    <th data-sort="status" class="sortable">Status <span class="sort-icon">&#8597;</span></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for schedule in schedules %}
+                <tr data-schedule-id="{{ schedule.schedule_id }}"
+                    data-name="{{ schedule.name }}"
+                    data-type="{{ schedule.schedule_type }}"
+                    data-priority="{{ schedule.priority }}"
+                    data-status="{{ schedule.status }}">
+                    <td data-value="{{ schedule.schedule_id }}">{{ schedule.schedule_id }}</td>
+                    <td data-value="{{ schedule.name }}">{{ schedule.name }}</td>
+                    <td data-value="{{ schedule.equipment_tag }}">{{ schedule.equipment_tag }} - {{ schedule.equipment_desc }}</td>
+                    <td data-value="{{ schedule.schedule_type }}">{{ schedule.schedule_type|title }}</td>
+                    <td data-value="{% if schedule.is_time_based() %}{{ schedule.frequency }}{% else %}{{ schedule.meter_interval }}{% endif %}">
+                        {% if schedule.is_time_based() %}
+                            {{ schedule.frequency }}
+                        {% else %}
+                            Every {{ schedule.meter_interval }} {{ schedule.meter_unit or 'units' }}
+                        {% endif %}
+                    </td>
+                    <td data-value="{% if schedule.is_time_based() %}{{ schedule.next_due_date or '' }}{% else %}{{ schedule.next_due_meter or '' }}{% endif %}">
+                        {% if schedule.is_time_based() %}
+                            {{ schedule.next_due_date or 'Not set' }}
+                        {% else %}
+                            {{ schedule.next_due_meter or 'Not set' }} {{ schedule.meter_unit or '' }}
+                        {% endif %}
+                    </td>
+                    <td data-value="{{ schedule.priority }}">
+                        <span class="priority-badge priority-{{ schedule.priority|lower }}">{{ schedule.priority }}</span>
+                    </td>
+                    <td data-value="{{ schedule.status }}">
+                        <span class="status-badge {% if schedule.status == 'Active' %}status-active{% else %}status-inactive{% endif %}">
+                            {{ schedule.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('maintenance_schedules.view_detail', schedule_id=schedule.id) }}" class="btn btn-sm btn-secondary">View</a>
+                        <a href="{{ url_for('maintenance_schedules.change', schedule_id=schedule.id) }}" class="btn btn-sm btn-warning">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; color: #7f8c8d; padding: 2rem;">
+            No maintenance schedules found. <a href="{{ url_for('maintenance_schedules.add') }}">Create one</a>.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+.btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+}
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+.status-active {
+    background-color: #48bb78;
+    color: white;
+}
+.status-inactive {
+    background-color: #a0aec0;
+    color: white;
+}
+
+/* Filter Bar Styles */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.filter-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #4a5568;
+}
+.filter-input, .filter-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    min-width: 150px;
+}
+.filter-input:focus, .filter-select:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Sortable Table Styles */
+.sortable-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+.sortable-table th.sortable:hover {
+    background-color: #e2e8f0;
+}
+.sort-icon {
+    margin-left: 0.25rem;
+    opacity: 0.4;
+    font-size: 0.875rem;
+}
+.sortable-table th.sort-asc .sort-icon,
+.sortable-table th.sort-desc .sort-icon {
+    opacity: 1;
+}
+
+/* Hide rows that don't match filter */
+.data-table tbody tr.hidden {
+    display: none;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('schedules-table');
+    if (!table) return;
+
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const searchInput = document.getElementById('search-schedule-id');
+    const searchNameInput = document.getElementById('search-name');
+    const typeFilter = document.getElementById('filter-type');
+    const priorityFilter = document.getElementById('filter-priority');
+    const statusFilter = document.getElementById('filter-status');
+    const clearFiltersBtn = document.getElementById('clear-filters');
+    const visibleCount = document.getElementById('visible-count');
+
+    // Sorting state
+    let currentSort = { column: null, direction: 'asc' };
+
+    // Priority order for sorting
+    const priorityOrder = { 'Emergency': 1, 'High': 2, 'Medium': 3, 'Low': 4 };
+
+    // Filter function
+    function applyFilters() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const searchNameTerm = searchNameInput.value.toLowerCase().trim();
+        const typeValue = typeFilter.value;
+        const priorityValue = priorityFilter.value;
+        const statusValue = statusFilter.value;
+
+        let visibleRows = 0;
+
+        rows.forEach(row => {
+            const scheduleId = row.getAttribute('data-schedule-id') || '';
+            const name = row.getAttribute('data-name') || '';
+            const type = row.getAttribute('data-type') || '';
+            const priority = row.getAttribute('data-priority') || '';
+            const status = row.getAttribute('data-status') || '';
+
+            const matchesSearch = !searchTerm || scheduleId.toLowerCase().includes(searchTerm);
+            const matchesName = !searchNameTerm || name.toLowerCase().includes(searchNameTerm);
+            const matchesType = !typeValue || type === typeValue;
+            const matchesPriority = !priorityValue || priority === priorityValue;
+            const matchesStatus = !statusValue || status === statusValue;
+
+            if (matchesSearch && matchesName && matchesType && matchesPriority && matchesStatus) {
+                row.classList.remove('hidden');
+                visibleRows++;
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+
+        visibleCount.textContent = visibleRows;
+    }
+
+    // Sort function
+    function sortTable(column) {
+        const headers = table.querySelectorAll('th.sortable');
+
+        // Determine sort direction
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+
+        // Update header classes and icons
+        headers.forEach(th => {
+            const icon = th.querySelector('.sort-icon');
+            th.classList.remove('sort-asc', 'sort-desc');
+            if (th.getAttribute('data-sort') === column) {
+                th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                if (icon) icon.textContent = currentSort.direction === 'asc' ? '\u25B2' : '\u25BC';
+            } else {
+                if (icon) icon.textContent = '\u2195';
+            }
+        });
+
+        // Get column index
+        const headerRow = table.querySelector('thead tr');
+        const headerCells = Array.from(headerRow.querySelectorAll('th'));
+        const columnIndex = headerCells.findIndex(th => th.getAttribute('data-sort') === column);
+
+        if (columnIndex === -1) return;
+
+        // Sort rows
+        rows.sort((a, b) => {
+            const aCell = a.querySelectorAll('td')[columnIndex];
+            const bCell = b.querySelectorAll('td')[columnIndex];
+            let aVal = aCell.getAttribute('data-value') || aCell.textContent.trim();
+            let bVal = bCell.getAttribute('data-value') || bCell.textContent.trim();
+
+            // Special handling for priority (custom order)
+            if (column === 'priority') {
+                aVal = priorityOrder[aVal] || 99;
+                bVal = priorityOrder[bVal] || 99;
+                return currentSort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+            }
+
+            // Special handling for dates
+            if (column === 'next-due' && aVal && bVal && aVal.match(/^\d{4}-\d{2}-\d{2}$/) && bVal.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const aDate = new Date(aVal);
+                const bDate = new Date(bVal);
+                return currentSort.direction === 'asc' ? aDate - bDate : bDate - aDate;
+            }
+
+            // Default string comparison
+            aVal = aVal.toString().toLowerCase();
+            bVal = bVal.toString().toLowerCase();
+
+            if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        // Re-append sorted rows
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', applyFilters);
+    searchNameInput.addEventListener('input', applyFilters);
+    typeFilter.addEventListener('change', applyFilters);
+    priorityFilter.addEventListener('change', applyFilters);
+    statusFilter.addEventListener('change', applyFilters);
+
+    clearFiltersBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        searchNameInput.value = '';
+        typeFilter.value = '';
+        priorityFilter.value = '';
+        statusFilter.value = '';
+        applyFilters();
+    });
+
+    // Add click handlers to sortable headers
+    table.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', function() {
+            const column = this.getAttribute('data-sort');
+            sortTable(column);
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Create Work Order - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('work_orders.index') }}" class="btn btn-back">
+            &#8592; Back to Work Orders
+        </a>
+    </div>
+
+    <div class="form-container" style="max-width: 700px;">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#10133;</span>
+            <h1>Create Work Order</h1>
+            <p class="form-subtitle">Enter the work order details below</p>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="work_order_number">Work Order Number *</label>
+                    <input type="text" id="work_order_number" name="work_order_number" required
+                           value="{{ wo_number }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="priority">Priority *</label>
+                    <select id="priority" name="priority" required>
+                        {% for p in priorities %}
+                        <option value="{{ p }}" {% if p == 'Medium' %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="title">Title *</label>
+                <input type="text" id="title" name="title" required
+                       placeholder="Brief description of the work">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3"
+                          placeholder="Detailed description of the work to be performed"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="equipment_id">Equipment</label>
+                    <select id="equipment_id" name="equipment_id">
+                        <option value="">-- Select Equipment (Optional) --</option>
+                        {% for equip in equipment_list %}
+                        <option value="{{ equip.id }}" data-location="{{ equip.location or '' }}">
+                            {{ equip.tag_number }} - {{ equip.description }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="location_code">Location</label>
+                    <select id="location_code" name="location_code">
+                        <option value="">-- Select Location --</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.location_code }}">{{ loc.location_code }} - {{ loc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        {% for s in statuses %}
+                        <option value="{{ s }}" {% if s == 'Open' %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="assigned_to">Assigned To</label>
+                    <select id="assigned_to" name="assigned_to">
+                        <option value="">-- Unassigned --</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.username }} ({{ user.role }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="due_date">Due Date</label>
+                <input type="date" id="due_date" name="due_date">
+            </div>
+
+            <!-- Parts Consumption Section -->
+            <div class="parts-consumption-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: #2c3e50;">
+                    &#128295; Parts Consumption
+                </h3>
+                <p style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 1rem;">
+                    Add spare parts to consume when this work order is created.
+                </p>
+
+                <div class="form-row" style="align-items: flex-end;">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="part_select">Spare Part</label>
+                        <select id="part_select">
+                            <option value="">-- Select Spare Part --</option>
+                            {% for part in spare_parts %}
+                            <option value="{{ part.id }}" data-desc="{{ part.description }}" data-avail="{{ part.quantity_available }}">
+                                {{ part.description }} (Available: {{ part.quantity_available }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="part_qty">Quantity</label>
+                        <input type="number" id="part_qty" min="1" value="1">
+                    </div>
+                    <div class="form-group" style="flex: 0;">
+                        <button type="button" class="btn btn-primary" onclick="addPart()">Add</button>
+                    </div>
+                </div>
+
+                <table class="data-table" id="parts_table" style="margin-top: 1rem; display: none;">
+                    <thead>
+                        <tr>
+                            <th>Spare Part</th>
+                            <th>Quantity</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="parts_tbody">
+                    </tbody>
+                </table>
+
+                <!-- Hidden field to store parts data -->
+                <input type="hidden" name="parts_to_consume" id="parts_to_consume" value="[]">
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('work_orders.index') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Create Work Order</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const equipmentSelect = document.getElementById('equipment_id');
+    const locationSelect = document.getElementById('location_code');
+
+    equipmentSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const locationCode = selectedOption.dataset.location;
+
+        if (locationCode) {
+            // Find and select the matching location
+            for (let i = 0; i < locationSelect.options.length; i++) {
+                if (locationSelect.options[i].value === locationCode) {
+                    locationSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    });
+});
+
+// Parts consumption management
+let partsToConsume = [];
+
+function addPart() {
+    const partSelect = document.getElementById('part_select');
+    const qtyInput = document.getElementById('part_qty');
+    const partId = partSelect.value;
+    const qty = parseInt(qtyInput.value) || 0;
+
+    if (!partId) {
+        alert('Please select a spare part.');
+        return;
+    }
+    if (qty <= 0) {
+        alert('Please enter a valid quantity.');
+        return;
+    }
+
+    const selectedOption = partSelect.options[partSelect.selectedIndex];
+    const partDesc = selectedOption.dataset.desc;
+    const available = parseInt(selectedOption.dataset.avail) || 0;
+
+    // Check if part already added
+    const existingIndex = partsToConsume.findIndex(p => p.id == partId);
+    if (existingIndex >= 0) {
+        // Update quantity
+        const newQty = partsToConsume[existingIndex].quantity + qty;
+        if (newQty > available) {
+            alert('Total quantity exceeds available stock (' + available + ').');
+            return;
+        }
+        partsToConsume[existingIndex].quantity = newQty;
+    } else {
+        if (qty > available) {
+            alert('Quantity exceeds available stock (' + available + ').');
+            return;
+        }
+        partsToConsume.push({
+            id: partId,
+            description: partDesc,
+            quantity: qty,
+            available: available
+        });
+    }
+
+    updatePartsTable();
+    partSelect.value = '';
+    qtyInput.value = '1';
+}
+
+function removePart(index) {
+    partsToConsume.splice(index, 1);
+    updatePartsTable();
+}
+
+function updatePartsTable() {
+    const tbody = document.getElementById('parts_tbody');
+    const table = document.getElementById('parts_table');
+    const hiddenField = document.getElementById('parts_to_consume');
+
+    tbody.innerHTML = '';
+
+    if (partsToConsume.length === 0) {
+        table.style.display = 'none';
+    } else {
+        table.style.display = 'table';
+        partsToConsume.forEach((part, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${part.description}</td>
+                <td>${part.quantity}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removePart(${index})">Remove</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // Update hidden field
+    hiddenField.value = JSON.stringify(partsToConsume.map(p => ({id: p.id, quantity: p.quantity})));
+}
+</script>
+<style>
+.btn-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}

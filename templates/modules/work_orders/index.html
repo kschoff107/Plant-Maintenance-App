@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Work Orders - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('main.home') }}" class="btn btn-back">
+            &#8592; Back to Home
+        </a>
+    </div>
+
+    <div class="module-content">
+        <span style="font-size: 4rem; margin-bottom: 1rem;">&#128203;</span>
+        <h1>Work Orders</h1>
+        <p class="description">Create and manage maintenance work orders</p>
+
+        <div class="module-actions">
+            <a href="{{ url_for('work_orders.add') }}" class="btn btn-module btn-success-outline">
+                <span class="btn-icon">&#10133;</span>
+                <span class="btn-text">Create Work Order</span>
+            </a>
+            <a href="{{ url_for('work_orders.change_select') }}" class="btn btn-module btn-warning-outline">
+                <span class="btn-icon">&#9998;</span>
+                <span class="btn-text">Change Work Order</span>
+            </a>
+            <a href="{{ url_for('work_orders.work_order_report') }}" class="btn btn-module">
+                <span class="btn-icon">&#128203;</span>
+                <span class="btn-text">Work Order Report</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Record Meter Reading - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('maintenance_schedules.index') }}" class="btn btn-back">
+            &#8592; Back to Maintenance Schedule
+        </a>
+    </div>
+
+    <div class="form-container" style="max-width: 500px;">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#9201;</span>
+            <h1>Record Meter Reading</h1>
+            <p class="form-subtitle">Enter the current meter reading for equipment</p>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-group">
+                <label for="equipment_id">Equipment *</label>
+                <select id="equipment_id" name="equipment_id" required>
+                    <option value="">-- Select Equipment --</option>
+                    {% for equip in equipment_list %}
+                    <option value="{{ equip.id }}" {% if preselected_equipment|string == equip.id|string %}selected{% endif %}>
+                        {{ equip.tag_number }} - {{ equip.description }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="reading_value">Meter Reading *</label>
+                    <input type="number" id="reading_value" name="reading_value" min="0" required
+                           placeholder="Enter reading value">
+                </div>
+
+                <div class="form-group">
+                    <label for="reading_unit">Unit</label>
+                    <select id="reading_unit" name="reading_unit">
+                        <option value="">-- Select Unit --</option>
+                        {% for unit in units %}
+                        <option value="{{ unit }}">{{ unit|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Notes</label>
+                <textarea id="notes" name="notes" rows="2"
+                          placeholder="Optional notes about this reading"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('maintenance_schedules.index') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Record Reading</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

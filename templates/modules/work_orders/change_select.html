@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Change Work Order - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('work_orders.index') }}" class="btn btn-back">
+            &#8592; Back to Work Orders
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Select Work Order to Change</h1>
+            <p>Click on a work order to edit its details</p>
+        </div>
+
+        {% if work_orders %}
+        <div class="search-filter-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search work orders..." class="search-input">
+            </div>
+            <div class="search-results">
+                <span id="resultCount">{{ work_orders|length }}</span> of {{ work_orders|length }} shown
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="workOrderTable">
+                <thead>
+                    <tr>
+                        <th>WO Number</th>
+                        <th>Title</th>
+                        <th>Equipment</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wo in work_orders %}
+                    <tr>
+                        <td>{{ wo.work_order_number }}</td>
+                        <td>{{ wo.title }}</td>
+                        <td>{{ wo.equipment_tag or '-' }}</td>
+                        <td>
+                            <span class="priority-badge priority-{{ wo.priority|lower }}">{{ wo.priority }}</span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-wo-{{ wo.status|lower|replace(' ', '-') }}">{{ wo.status }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('work_orders.change', wo_id=wo.id) }}" class="btn btn-small btn-warning">
+                                Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span style="font-size: 3rem;">&#128203;</span>
+            <p>No work orders found to edit.</p>
+            <a href="{{ url_for('work_orders.add') }}" class="btn btn-primary">Create First Work Order</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const table = document.getElementById('workOrderTable');
+    const resultCount = document.getElementById('resultCount');
+
+    if (!searchInput || !table) return;
+
+    const tbody = table.querySelector('tbody');
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        const rows = tbody.querySelectorAll('tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            let match = false;
+
+            for (let i = 0; i < cells.length - 1; i++) {
+                if (cells[i].textContent.toLowerCase().includes(searchTerm)) {
+                    match = true;
+                    break;
+                }
+            }
+
+            row.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+
+        resultCount.textContent = visibleCount;
+    });
+});
+</script>
+{% endblock %}

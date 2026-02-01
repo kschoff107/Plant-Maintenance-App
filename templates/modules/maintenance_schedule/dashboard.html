@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Maintenance Dashboard - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('maintenance_schedules.index') }}" class="btn btn-back">
+            &#8592; Back to Maintenance Schedule
+        </a>
+    </div>
+
+    <div class="list-container" style="max-width: 1200px;">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#128200;</span>
+            <h1>Maintenance Dashboard</h1>
+            <p class="list-subtitle">Overview of scheduled maintenance</p>
+        </div>
+
+        <!-- Overdue Section -->
+        <div class="dashboard-section" style="margin-bottom: 2rem;">
+            <h2 style="color: #e53e3e; margin-bottom: 1rem;">
+                &#9888; Overdue ({{ overdue|length }})
+            </h2>
+            {% if overdue %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Schedule Name</th>
+                        <th>Equipment</th>
+                        <th>Type</th>
+                        <th>Due</th>
+                        <th>Priority</th>
+                        <th>Status / Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for schedule in overdue %}
+                    <tr style="background-color: #fed7d7;">
+                        <td>{{ schedule.name }}</td>
+                        <td>{{ schedule.equipment_tag }} - {{ schedule.equipment_desc }}</td>
+                        <td>{{ schedule.schedule_type|title }}</td>
+                        <td>
+                            {% if schedule.is_time_based() %}
+                                {{ schedule.next_due_date }}
+                            {% else %}
+                                {{ schedule.next_due_meter }} {{ schedule.meter_unit }}
+                                {% if schedule.current_meter %}
+                                    (Current: {{ schedule.current_meter }})
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="priority-badge priority-{{ schedule.priority|lower }}">{{ schedule.priority }}</span>
+                        </td>
+                        <td>
+                            {% if schedule.open_work_orders %}
+                                {% for wo in schedule.open_work_orders %}
+                                <span class="wo-status-badge wo-status-{{ wo.status|lower|replace(' ', '-') }}">
+                                    {{ wo.number }} - {{ wo.status }}
+                                </span>
+                                {% endfor %}
+                                <form method="POST" action="{{ url_for('maintenance_schedules.create_work_order', schedule_id=schedule.id) }}" style="display: inline; margin-left: 0.5rem;">
+                                    <button type="submit" class="btn btn-sm btn-outline" title="Create additional work order">+ WO</button>
+                                </form>
+                            {% else %}
+                                <form method="POST" action="{{ url_for('maintenance_schedules.create_work_order', schedule_id=schedule.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-primary">Create WO</button>
+                                </form>
+                            {% endif %}
+                            <a href="{{ url_for('maintenance_schedules.view_detail', schedule_id=schedule.id) }}" class="btn btn-sm btn-secondary">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #48bb78; font-style: italic;">No overdue maintenance.</p>
+            {% endif %}
+        </div>
+
+        <!-- Due Today Section -->
+        <div class="dashboard-section" style="margin-bottom: 2rem;">
+            <h2 style="color: #ed8936; margin-bottom: 1rem;">
+                &#128197; Due Today ({{ due_today|length }})
+            </h2>
+            {% if due_today %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Schedule Name</th>
+                        <th>Equipment</th>
+                        <th>Type</th>
+                        <th>Priority</th>
+                        <th>Status / Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for schedule in due_today %}
+                    <tr style="background-color: #feebc8;">
+                        <td>{{ schedule.name }}</td>
+                        <td>{{ schedule.equipment_tag }} - {{ schedule.equipment_desc }}</td>
+                        <td>{{ schedule.schedule_type|title }}</td>
+                        <td>
+                            <span class="priority-badge priority-{{ schedule.priority|lower }}">{{ schedule.priority }}</span>
+                        </td>
+                        <td>
+                            {% if schedule.open_work_orders %}
+                                {% for wo in schedule.open_work_orders %}
+                                <span class="wo-status-badge wo-status-{{ wo.status|lower|replace(' ', '-') }}">
+                                    {{ wo.number }} - {{ wo.status }}
+                                </span>
+                                <a href="{{ url_for('work_orders.view_detail', wo_id=wo.id) }}" class="btn btn-sm btn-primary">View WO</a>
+                                {% endfor %}
+                            {% else %}
+                                <form method="POST" action="{{ url_for('maintenance_schedules.create_work_order', schedule_id=schedule.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-primary">Create WO</button>
+                                </form>
+                            {% endif %}
+                            <a href="{{ url_for('maintenance_schedules.view_detail', schedule_id=schedule.id) }}" class="btn btn-sm btn-secondary">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #7f8c8d; font-style: italic;">No maintenance due today.</p>
+            {% endif %}
+        </div>
+
+        <!-- Upcoming Section -->
+        <div class="dashboard-section">
+            <h2 style="color: #4a90d9; margin-bottom: 1rem;">
+                &#128337; Upcoming 7 Days ({{ upcoming|length }})
+            </h2>
+            {% if upcoming %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Schedule Name</th>
+                        <th>Equipment</th>
+                        <th>Type</th>
+                        <th>Due Date</th>
+                        <th>Priority</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for schedule in upcoming %}
+                    <tr>
+                        <td>{{ schedule.name }}</td>
+                        <td>{{ schedule.equipment_tag }} - {{ schedule.equipment_desc }}</td>
+                        <td>{{ schedule.schedule_type|title }}</td>
+                        <td>{{ schedule.next_due_date }}</td>
+                        <td>
+                            <span class="priority-badge priority-{{ schedule.priority|lower }}">{{ schedule.priority }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('maintenance_schedules.view_detail', schedule_id=schedule.id) }}" class="btn btn-sm btn-secondary">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #7f8c8d; font-style: italic;">No upcoming maintenance in the next 7 days.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+.btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+}
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+.btn-outline {
+    background-color: transparent;
+    border: 1px solid #4a90d9;
+    color: #4a90d9;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+.btn-outline:hover {
+    background-color: #4a90d9;
+    color: white;
+}
+.wo-status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+.wo-status-open {
+    background-color: #bee3f8;
+    color: #2b6cb0;
+}
+.wo-status-in-progress {
+    background-color: #fefcbf;
+    color: #975a16;
+}
+.wo-status-on-hold {
+    background-color: #fed7d7;
+    color: #c53030;
+}
+</style>
+{% endblock %}

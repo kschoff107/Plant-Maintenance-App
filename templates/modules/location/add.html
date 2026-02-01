@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Add Location - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('location.master_data') }}" class="btn btn-back">
+            &#8592; Back to Master Data
+        </a>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#10133;</span>
+            <h1>Add New Location</h1>
+            <p class="form-subtitle">Enter the location details below</p>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-group">
+                <label for="location_code">Location Code *</label>
+                <input type="text" id="location_code" name="location_code" required
+                       placeholder="e.g., LOC-001, BLDG-A">
+            </div>
+
+            <div class="form-group">
+                <label for="name">Name *</label>
+                <input type="text" id="name" name="name" required
+                       placeholder="e.g., Building A - Floor 1">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3"
+                          placeholder="Additional details about this location"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="location_type">Location Type</label>
+                    <select id="location_type" name="location_type">
+                        {% for type in types %}
+                        <option value="{{ type }}">{{ type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        {% for status in statuses %}
+                        <option value="{{ status }}">{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('location.master_data') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Create Location</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

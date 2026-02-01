@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Master Data - Location{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('location.index') }}" class="btn btn-back">
+            &#8592; Back to Location
+        </a>
+    </div>
+
+    <div class="module-content">
+        <span style="font-size: 4rem; margin-bottom: 1rem;">&#128451;</span>
+        <h1>Location Master Data</h1>
+        <p class="description">Create and modify location records</p>
+
+        <div class="module-actions">
+            <a href="{{ url_for('location.add') }}" class="btn btn-module btn-success-outline">
+                <span class="btn-icon">&#10133;</span>
+                <span class="btn-text">Add Location</span>
+            </a>
+            <a href="{{ url_for('location.change_select') }}" class="btn btn-module btn-warning-outline">
+                <span class="btn-icon">&#9998;</span>
+                <span class="btn-text">Change Location</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

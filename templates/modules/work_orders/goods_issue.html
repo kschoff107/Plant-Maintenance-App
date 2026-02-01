@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}Goods Issue - {{ work_order.work_order_number }}{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('work_orders.view_detail', wo_id=work_order.id) }}" class="btn btn-back">
+            &#8592; Back to Work Order
+        </a>
+    </div>
+
+    <div class="detail-container">
+        <div class="detail-header">
+            <span style="font-size: 2.5rem;">&#128295;</span>
+            <h1>Goods Issue</h1>
+            <p class="detail-id">Work Order: {{ work_order.work_order_number }}</p>
+        </div>
+
+        <!-- Work Order Summary -->
+        <div class="detail-card" style="margin-bottom: 2rem;">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; color: #2c3e50;">Work Order Details</h3>
+            <div class="detail-row">
+                <span class="detail-label">Title</span>
+                <span class="detail-value">{{ work_order.title }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Equipment</span>
+                <span class="detail-value">
+                    {% if work_order.equipment_tag %}
+                        {{ work_order.equipment_tag }} - {{ work_order.equipment_desc }}
+                    {% else %}
+                        Not specified
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Status</span>
+                <span class="detail-value">
+                    <span class="status-badge status-wo-{{ work_order.status|lower|replace(' ', '-') }}">{{ work_order.status }}</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Issue New Part Form -->
+        <div class="detail-card" style="margin-bottom: 2rem;">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; color: #2c3e50;">Issue Spare Part</h3>
+            <form method="POST" action="{{ url_for('work_orders.goods_issue', wo_id=work_order.id) }}">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="spare_part_id">Spare Part *</label>
+                        <select name="spare_part_id" id="spare_part_id" required>
+                            <option value="">-- Select Spare Part --</option>
+                            {% for part in spare_parts %}
+                            <option value="{{ part.id }}">
+                                {{ part.description }} (Available: {{ part.quantity_available }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="quantity">Quantity *</label>
+                        <input type="number" name="quantity" id="quantity" min="1" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <input type="text" name="notes" id="notes" placeholder="Optional notes for this transaction">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Post Goods Issue</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Issued Parts List -->
+        <div class="detail-card" style="margin-bottom: 2rem;">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; color: #2c3e50;">Issued Parts (Current)</h3>
+            {% if issued_parts %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Spare Part</th>
+                        <th>Storage Location</th>
+                        <th>Bin</th>
+                        <th>Net Qty Issued</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part in issued_parts %}
+                    <tr>
+                        <td>{{ part.description }}</td>
+                        <td>{{ part.storage_location or '-' }}</td>
+                        <td>{{ part.storage_bin or '-' }}</td>
+                        <td>{{ part.net_quantity }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-warning" onclick="showReturnModal({{ part.spare_part_id }}, '{{ part.description }}', {{ part.net_quantity }})">
+                                Return
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #7f8c8d; font-style: italic;">No parts have been issued to this work order yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Transaction History -->
+        <div class="detail-card">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; color: #2c3e50;">Transaction History</h3>
+            {% if transaction_history %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Type</th>
+                        <th>Spare Part</th>
+                        <th>Quantity</th>
+                        <th>By</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in transaction_history %}
+                    <tr>
+                        <td>{{ txn.transacted_at }}</td>
+                        <td>
+                            <span class="status-badge {% if txn.transaction_type == 'issue' %}status-wo-in-progress{% else %}status-wo-on-hold{% endif %}">
+                                {{ txn.transaction_type|capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ txn.spare_part_desc }}</td>
+                        <td>{{ txn.quantity }}</td>
+                        <td>{{ txn.transacted_by_name or 'Unknown' }}</td>
+                        <td>{{ txn.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #7f8c8d; font-style: italic;">No transactions recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Return Modal -->
+<div id="returnModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Return Spare Part</h3>
+            <span class="modal-close" onclick="closeReturnModal()">&times;</span>
+        </div>
+        <form id="returnForm" method="POST">
+            <div class="modal-body">
+                <p>Returning: <strong id="returnPartName"></strong></p>
+                <p>Maximum returnable: <strong id="returnMaxQty"></strong></p>
+                <div class="form-group">
+                    <label for="return_quantity">Quantity to Return *</label>
+                    <input type="number" name="quantity" id="return_quantity" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="return_notes">Notes</label>
+                    <input type="text" name="notes" id="return_notes" placeholder="Optional notes">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeReturnModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Post Return</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .modal {
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-content {
+        background-color: #fff;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .modal-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .modal-header h3 {
+        margin: 0;
+        color: #2c3e50;
+    }
+    .modal-close {
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #7f8c8d;
+    }
+    .modal-close:hover {
+        color: #2c3e50;
+    }
+    .modal-body {
+        padding: 1.5rem;
+    }
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    .btn-secondary {
+        background-color: #95a5a6;
+        color: white;
+    }
+    .btn-secondary:hover {
+        background-color: #7f8c8d;
+    }
+</style>
+
+<script>
+    function showReturnModal(partId, partName, maxQty) {
+        document.getElementById('returnPartName').textContent = partName;
+        document.getElementById('returnMaxQty').textContent = maxQty;
+        document.getElementById('return_quantity').max = maxQty;
+        document.getElementById('return_quantity').value = '';
+        document.getElementById('return_notes').value = '';
+        document.getElementById('returnForm').action = '{{ url_for("work_orders.goods_issue", wo_id=work_order.id) }}'.replace('goods-issue', 'goods-return/' + partId);
+        document.getElementById('returnModal').style.display = 'flex';
+    }
+
+    function closeReturnModal() {
+        document.getElementById('returnModal').style.display = 'none';
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('returnModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeReturnModal();
+        }
+    });
+</script>
+{% endblock %}

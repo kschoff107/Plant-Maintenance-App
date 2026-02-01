@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment List - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('equipment.index') }}" class="btn btn-back">
+            &#8592; Back to Equipment
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#128203;</span>
+            <h1>Equipment List</h1>
+            <p>{{ equipment|length }} equipment item(s) in system</p>
+        </div>
+
+        {% if equipment %}
+        <div class="inventory-legend">
+            <span class="legend-item">
+                <span class="legend-color legend-under-repair"></span> Under Repair
+            </span>
+            <span class="legend-item">
+                <span class="legend-color legend-inactive"></span> Inactive
+            </span>
+            <span class="legend-item">
+                <span class="legend-color legend-decommissioned"></span> Decommissioned
+            </span>
+        </div>
+
+        <div class="search-filter-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search equipment..." class="search-input">
+            </div>
+            <div class="filter-options">
+                <label class="filter-label">Filter by:</label>
+                <select id="filterColumn" class="filter-select">
+                    <option value="all">All Columns</option>
+                    <option value="0">Equipment ID</option>
+                    <option value="1">Tag Number</option>
+                    <option value="2">Description</option>
+                    <option value="3">Manufacturer</option>
+                    <option value="4">Model Number</option>
+                    <option value="5">Serial Number</option>
+                    <option value="6">Location</option>
+                    <option value="7">Installation Date</option>
+                    <option value="8">Status</option>
+                </select>
+            </div>
+            <div class="filter-options">
+                <label class="filter-label">Status:</label>
+                <select id="statusFilter" class="filter-select">
+                    <option value="all">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Under Repair">Under Repair</option>
+                    <option value="Decommissioned">Decommissioned</option>
+                </select>
+            </div>
+            <div class="search-results">
+                <span id="resultCount">{{ equipment|length }}</span> of {{ equipment|length }} shown
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table sortable-table equipment-list-table" id="equipmentTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="0" data-type="number">Equipment ID <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="1" data-type="string">Tag Number <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="2" data-type="string">Description <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="3" data-type="string">Manufacturer <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="4" data-type="string">Model Number <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="5" data-type="string">Serial Number <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="6" data-type="string">Location <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="7" data-type="string">Installation Date <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="8" data-type="string">Status <span class="sort-icon">&#8597;</span></th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for equip in equipment %}
+                    <tr class="{% if equip.status == 'Under Repair' %}row-under-repair{% elif equip.status == 'Inactive' %}row-inactive{% elif equip.status == 'Decommissioned' %}row-decommissioned{% endif %}" data-status="{{ equip.status }}">
+                        <td>{{ equip.id }}</td>
+                        <td>{{ equip.tag_number }}</td>
+                        <td>{{ equip.description }}</td>
+                        <td>{{ equip.manufacturer or '-' }}</td>
+                        <td>{{ equip.model_number or '-' }}</td>
+                        <td>{{ equip.serial_number or '-' }}</td>
+                        <td>{{ equip.location or '-' }}</td>
+                        <td>{{ equip.installation_date or '-' }}</td>
+                        <td>
+                            <span class="status-badge status-{{ equip.status|lower|replace(' ', '-') }}">{{ equip.status }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('equipment.view_detail', equip_id=equip.id) }}" class="btn btn-small">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span style="font-size: 3rem;">&#9881;</span>
+            <p>No equipment found.</p>
+            <a href="{{ url_for('equipment.add') }}" class="btn btn-primary">Add First Equipment</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const filterColumn = document.getElementById('filterColumn');
+    const statusFilter = document.getElementById('statusFilter');
+    const table = document.getElementById('equipmentTable');
+    const resultCount = document.getElementById('resultCount');
+
+    if (!searchInput || !table) return;
+
+    const tbody = table.querySelector('tbody');
+    const headers = table.querySelectorAll('th.sortable');
+    let currentSort = { column: null, direction: 'asc' };
+
+    function filterTable() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const columnIndex = filterColumn.value;
+        const statusFilterValue = statusFilter.value;
+        const rows = tbody.querySelectorAll('tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const rowStatus = row.dataset.status;
+            let matchSearch = false;
+            let matchStatus = false;
+
+            if (statusFilterValue === 'all') {
+                matchStatus = true;
+            } else {
+                matchStatus = (rowStatus === statusFilterValue);
+            }
+
+            if (searchTerm === '') {
+                matchSearch = true;
+            } else if (columnIndex === 'all') {
+                for (let i = 0; i < cells.length - 1; i++) {
+                    if (cells[i].textContent.toLowerCase().includes(searchTerm)) {
+                        matchSearch = true;
+                        break;
+                    }
+                }
+            } else {
+                const colIdx = parseInt(columnIndex);
+                if (cells[colIdx] && cells[colIdx].textContent.toLowerCase().includes(searchTerm)) {
+                    matchSearch = true;
+                }
+            }
+
+            const show = matchSearch && matchStatus;
+            row.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        });
+
+        resultCount.textContent = visibleCount;
+    }
+
+    function sortTable(columnIndex, dataType) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        if (currentSort.column === columnIndex) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = columnIndex;
+            currentSort.direction = 'asc';
+        }
+
+        headers.forEach(header => {
+            const icon = header.querySelector('.sort-icon');
+            if (parseInt(header.dataset.column) === columnIndex) {
+                icon.innerHTML = currentSort.direction === 'asc' ? '&#8593;' : '&#8595;';
+                header.classList.add('sorted');
+            } else {
+                icon.innerHTML = '&#8597;';
+                header.classList.remove('sorted');
+            }
+        });
+
+        rows.sort((a, b) => {
+            let aVal = a.querySelectorAll('td')[columnIndex].textContent.trim();
+            let bVal = b.querySelectorAll('td')[columnIndex].textContent.trim();
+
+            if (dataType === 'number') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            } else {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+            }
+
+            if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    searchInput.addEventListener('input', filterTable);
+    filterColumn.addEventListener('change', filterTable);
+    statusFilter.addEventListener('change', filterTable);
+
+    headers.forEach(header => {
+        header.addEventListener('click', function() {
+            const column = parseInt(this.dataset.column);
+            const type = this.dataset.type;
+            sortTable(column, type);
+        });
+    });
+});
+</script>
+{% endblock %}

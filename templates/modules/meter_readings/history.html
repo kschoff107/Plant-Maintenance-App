@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Meter History - {{ equipment.tag_number }}{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('equipment.view_detail', equip_id=equipment.id) }}" class="btn btn-back">
+            &#8592; Back to Equipment
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#9201;</span>
+            <h1>Meter Reading History</h1>
+            <p class="list-subtitle">{{ equipment.tag_number }} - {{ equipment.description }}</p>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <a href="{{ url_for('meter_readings.add', equipment_id=equipment.id) }}" class="btn btn-primary">
+                &#10133; Add Reading
+            </a>
+        </div>
+
+        {% if readings %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date/Time</th>
+                    <th>Reading</th>
+                    <th>Unit</th>
+                    <th>Recorded By</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reading in readings %}
+                <tr>
+                    <td>{{ reading.recorded_at }}</td>
+                    <td>{{ reading.reading_value }}</td>
+                    <td>{{ reading.reading_unit or '-' }}</td>
+                    <td>{{ reading.recorded_by_name or 'Unknown' }}</td>
+                    <td>{{ reading.notes or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; color: #7f8c8d; padding: 2rem;">
+            No meter readings recorded for this equipment.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

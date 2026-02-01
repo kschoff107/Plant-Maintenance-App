@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Location List - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('location.index') }}" class="btn btn-back">
+            &#8592; Back to Location
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#128203;</span>
+            <h1>Location List</h1>
+            <p>{{ locations|length }} location(s) in system</p>
+        </div>
+
+        {% if locations %}
+        <div class="inventory-legend">
+            <span class="legend-item">
+                <span class="legend-color legend-inactive"></span> Inactive
+            </span>
+        </div>
+
+        <div class="search-filter-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search locations..." class="search-input">
+            </div>
+            <div class="filter-options">
+                <label class="filter-label">Filter by:</label>
+                <select id="filterColumn" class="filter-select">
+                    <option value="all">All Columns</option>
+                    <option value="0">Location Code</option>
+                    <option value="1">Name</option>
+                    <option value="2">Description</option>
+                    <option value="3">Type</option>
+                    <option value="4">Status</option>
+                </select>
+            </div>
+            <div class="filter-options">
+                <label class="filter-label">Status:</label>
+                <select id="statusFilter" class="filter-select">
+                    <option value="all">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            <div class="search-results">
+                <span id="resultCount">{{ locations|length }}</span> of {{ locations|length }} shown
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table sortable-table location-list-table" id="locationTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="0" data-type="string">Location Code <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="1" data-type="string">Name <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="2" data-type="string">Description <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="3" data-type="string">Type <span class="sort-icon">&#8597;</span></th>
+                        <th class="sortable" data-column="4" data-type="string">Status <span class="sort-icon">&#8597;</span></th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loc in locations %}
+                    <tr class="{% if loc.status == 'Inactive' %}row-inactive{% endif %}" data-status="{{ loc.status }}">
+                        <td>{{ loc.location_code }}</td>
+                        <td>{{ loc.name }}</td>
+                        <td>{{ loc.description or '-' }}</td>
+                        <td>{{ loc.location_type }}</td>
+                        <td>
+                            <span class="status-badge status-{{ loc.status|lower }}">{{ loc.status }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('location.view_detail', loc_id=loc.id) }}" class="btn btn-small">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span style="font-size: 3rem;">&#128205;</span>
+            <p>No locations found.</p>
+            <a href="{{ url_for('location.add') }}" class="btn btn-primary">Add First Location</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const filterColumn = document.getElementById('filterColumn');
+    const statusFilter = document.getElementById('statusFilter');
+    const table = document.getElementById('locationTable');
+    const resultCount = document.getElementById('resultCount');
+
+    if (!searchInput || !table) return;
+
+    const tbody = table.querySelector('tbody');
+    const headers = table.querySelectorAll('th.sortable');
+    let currentSort = { column: null, direction: 'asc' };
+
+    function filterTable() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const columnIndex = filterColumn.value;
+        const statusFilterValue = statusFilter.value;
+        const rows = tbody.querySelectorAll('tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const rowStatus = row.dataset.status;
+            let matchSearch = false;
+            let matchStatus = false;
+
+            if (statusFilterValue === 'all') {
+                matchStatus = true;
+            } else {
+                matchStatus = (rowStatus === statusFilterValue);
+            }
+
+            if (searchTerm === '') {
+                matchSearch = true;
+            } else if (columnIndex === 'all') {
+                for (let i = 0; i < cells.length - 1; i++) {
+                    if (cells[i].textContent.toLowerCase().includes(searchTerm)) {
+                        matchSearch = true;
+                        break;
+                    }
+                }
+            } else {
+                const colIdx = parseInt(columnIndex);
+                if (cells[colIdx] && cells[colIdx].textContent.toLowerCase().includes(searchTerm)) {
+                    matchSearch = true;
+                }
+            }
+
+            const show = matchSearch && matchStatus;
+            row.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        });
+
+        resultCount.textContent = visibleCount;
+    }
+
+    function sortTable(columnIndex, dataType) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        if (currentSort.column === columnIndex) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = columnIndex;
+            currentSort.direction = 'asc';
+        }
+
+        headers.forEach(header => {
+            const icon = header.querySelector('.sort-icon');
+            if (parseInt(header.dataset.column) === columnIndex) {
+                icon.innerHTML = currentSort.direction === 'asc' ? '&#8593;' : '&#8595;';
+                header.classList.add('sorted');
+            } else {
+                icon.innerHTML = '&#8597;';
+                header.classList.remove('sorted');
+            }
+        });
+
+        rows.sort((a, b) => {
+            let aVal = a.querySelectorAll('td')[columnIndex].textContent.trim();
+            let bVal = b.querySelectorAll('td')[columnIndex].textContent.trim();
+
+            if (dataType === 'number') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            } else {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+            }
+
+            if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    searchInput.addEventListener('input', filterTable);
+    filterColumn.addEventListener('change', filterTable);
+    statusFilter.addEventListener('change', filterTable);
+
+    headers.forEach(header => {
+        header.addEventListener('click', function() {
+            const column = parseInt(this.dataset.column);
+            const type = this.dataset.type;
+            sortTable(column, type);
+        });
+    });
+});
+</script>
+{% endblock %}

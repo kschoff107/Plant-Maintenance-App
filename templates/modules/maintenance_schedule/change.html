@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Change Schedule - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('maintenance_schedules.change_select') }}" class="btn btn-back">
+            &#8592; Back to Selection
+        </a>
+    </div>
+
+    <div class="form-container" style="max-width: 700px;">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Change Maintenance Schedule</h1>
+            <p class="form-subtitle">Editing: {{ schedule.name }}</p>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-group">
+                <label for="name">Schedule Name *</label>
+                <input type="text" id="name" name="name" required value="{{ schedule.name }}">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="2">{{ schedule.description or '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="equipment_id">Equipment *</label>
+                <select id="equipment_id" name="equipment_id" required>
+                    <option value="">-- Select Equipment --</option>
+                    {% for equip in equipment_list %}
+                    <option value="{{ equip.id }}" {% if schedule.equipment_id == equip.id %}selected{% endif %}>
+                        {{ equip.tag_number }} - {{ equip.description }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="schedule_type">Schedule Type *</label>
+                    <select id="schedule_type" name="schedule_type" required onchange="toggleScheduleFields()">
+                        {% for type in schedule_types %}
+                        <option value="{{ type }}" {% if schedule.schedule_type == type %}selected{% endif %}>
+                            {{ type|title }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="priority">Priority</label>
+                    <select id="priority" name="priority">
+                        {% for p in priorities %}
+                        <option value="{{ p }}" {% if schedule.priority == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        {% for s in statuses %}
+                        <option value="{{ s }}" {% if schedule.status == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="estimated_duration">Estimated Duration (min)</label>
+                    <input type="number" id="estimated_duration" name="estimated_duration" min="1"
+                           value="{{ schedule.estimated_duration or '' }}">
+                </div>
+            </div>
+
+            <!-- Time-based fields -->
+            <div id="time_based_fields" {% if schedule.schedule_type == 'meter-based' %}style="display: none;"{% endif %}>
+                <div class="form-group">
+                    <label for="frequency">Frequency</label>
+                    <select id="frequency" name="frequency">
+                        <option value="">-- Select Frequency --</option>
+                        {% for f in frequencies %}
+                        <option value="{{ f }}" {% if schedule.frequency == f %}selected{% endif %}>{{ f }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Meter-based fields -->
+            <div id="meter_based_fields" {% if schedule.schedule_type != 'meter-based' %}style="display: none;"{% endif %}>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="meter_interval">Meter Interval</label>
+                        <input type="number" id="meter_interval" name="meter_interval" min="1"
+                               value="{{ schedule.meter_interval or '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="meter_unit">Unit</label>
+                        <select id="meter_unit" name="meter_unit">
+                            <option value="">-- Select Unit --</option>
+                            <option value="hours" {% if schedule.meter_unit == 'hours' %}selected{% endif %}>Hours</option>
+                            <option value="miles" {% if schedule.meter_unit == 'miles' %}selected{% endif %}>Miles</option>
+                            <option value="kilometers" {% if schedule.meter_unit == 'kilometers' %}selected{% endif %}>Kilometers</option>
+                            <option value="cycles" {% if schedule.meter_unit == 'cycles' %}selected{% endif %}>Cycles</option>
+                            <option value="units" {% if schedule.meter_unit == 'units' %}selected{% endif %}>Units</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="instructions">Maintenance Instructions</label>
+                <textarea id="instructions" name="instructions" rows="4">{{ schedule.instructions or '' }}</textarea>
+            </div>
+
+            <!-- Read-only info -->
+            <div style="background-color: #f7fafc; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                <p style="margin: 0; color: #718096; font-size: 0.875rem;">
+                    <strong>Last Performed:</strong> {{ schedule.last_performed_date or 'Never' }}<br>
+                    {% if schedule.is_time_based() %}
+                    <strong>Next Due:</strong> {{ schedule.next_due_date or 'Not calculated' }}
+                    {% else %}
+                    <strong>Next Due Meter:</strong> {{ schedule.next_due_meter or 'Not set' }} {{ schedule.meter_unit or '' }}
+                    {% endif %}
+                </p>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('maintenance_schedules.change_select') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleScheduleFields() {
+    const scheduleType = document.getElementById('schedule_type').value;
+    const timeFields = document.getElementById('time_based_fields');
+    const meterFields = document.getElementById('meter_based_fields');
+
+    if (scheduleType === 'meter-based') {
+        timeFields.style.display = 'none';
+        meterFields.style.display = 'block';
+    } else {
+        timeFields.style.display = 'block';
+        meterFields.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Change Location - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('location.change_select') }}" class="btn btn-back">
+            &#8592; Back to Selection
+        </a>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Change Location</h1>
+            <p class="form-subtitle">Location Code: {{ location.location_code }}</p>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-group">
+                <label for="location_code">Location Code *</label>
+                <input type="text" id="location_code" name="location_code" required
+                       value="{{ location.location_code }}">
+            </div>
+
+            <div class="form-group">
+                <label for="name">Name *</label>
+                <input type="text" id="name" name="name" required
+                       value="{{ location.name }}">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3">{{ location.description or '' }}</textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="location_type">Location Type</label>
+                    <select id="location_type" name="location_type">
+                        {% for type in types %}
+                        <option value="{{ type }}" {% if location.location_type == type %}selected{% endif %}>{{ type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        {% for status in statuses %}
+                        <option value="{{ status }}" {% if location.status == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('location.change_select') }}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

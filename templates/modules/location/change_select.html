@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Change Location - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('location.master_data') }}" class="btn btn-back">
+            &#8592; Back to Master Data
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Select Location to Change</h1>
+            <p>Click on a location to edit its details</p>
+        </div>
+
+        {% if locations %}
+        <div class="search-filter-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search locations..." class="search-input">
+            </div>
+            <div class="search-results">
+                <span id="resultCount">{{ locations|length }}</span> of {{ locations|length }} shown
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="locationTable">
+                <thead>
+                    <tr>
+                        <th>Location Code</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loc in locations %}
+                    <tr>
+                        <td>{{ loc.location_code }}</td>
+                        <td>{{ loc.name }}</td>
+                        <td>{{ loc.location_type }}</td>
+                        <td>
+                            <span class="status-badge status-{{ loc.status|lower }}">{{ loc.status }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('location.change', loc_id=loc.id) }}" class="btn btn-small btn-warning">
+                                Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span style="font-size: 3rem;">&#128205;</span>
+            <p>No locations found to edit.</p>
+            <a href="{{ url_for('location.add') }}" class="btn btn-primary">Add First Location</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const table = document.getElementById('locationTable');
+    const resultCount = document.getElementById('resultCount');
+
+    if (!searchInput || !table) return;
+
+    const tbody = table.querySelector('tbody');
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        const rows = tbody.querySelectorAll('tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            let match = false;
+
+            for (let i = 0; i < cells.length - 1; i++) {
+                if (cells[i].textContent.toLowerCase().includes(searchTerm)) {
+                    match = true;
+                    break;
+                }
+            }
+
+            row.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+
+        resultCount.textContent = visibleCount;
+    });
+});
+</script>
+{% endblock %}

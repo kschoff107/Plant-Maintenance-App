@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Add Equipment - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('equipment.master_data') }}" class="btn btn-back">
+            &#8592; Back to Master Data
+        </a>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#10133;</span>
+            <h1>Add New Equipment</h1>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="tag_number">Tag Number *</label>
+                    <input type="text" id="tag_number" name="tag_number" required
+                           placeholder="e.g., PMP-001">
+                </div>
+
+                <div class="form-group">
+                    <label for="status">Status *</label>
+                    <select id="status" name="status" required>
+                        {% for status in statuses %}
+                        <option value="{{ status }}" {% if status == 'Active' %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description *</label>
+                <input type="text" id="description" name="description" required
+                       placeholder="Enter equipment description">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="manufacturer">Manufacturer</label>
+                    <input type="text" id="manufacturer" name="manufacturer"
+                           placeholder="e.g., Grundfos">
+                </div>
+
+                <div class="form-group">
+                    <label for="model_number">Model Number</label>
+                    <input type="text" id="model_number" name="model_number"
+                           placeholder="e.g., CR 15-3">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="serial_number">Serial Number</label>
+                    <input type="text" id="serial_number" name="serial_number"
+                           placeholder="e.g., SN123456789">
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <select id="location" name="location">
+                        <option value="">-- Select Location --</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.location_code }}">{{ loc.location_code }} - {{ loc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="installation_date">Installation Date</label>
+                <input type="date" id="installation_date" name="installation_date">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    &#10003; Create Equipment
+                </button>
+                <a href="{{ url_for('equipment.master_data') }}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Change Spare Part - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('spare_parts.change_select') }}" class="btn btn-back">
+            &#8592; Back to Selection
+        </a>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Change Spare Part</h1>
+            <p class="form-subtitle">Editing: {{ spare_part.description }} (ID: {{ spare_part.id }})</p>
+        </div>
+
+        <form method="POST" class="data-form">
+            <div class="form-group">
+                <label for="description">Description *</label>
+                <input type="text" id="description" name="description" required
+                       value="{{ spare_part.description }}"
+                       placeholder="Enter spare part description">
+            </div>
+
+            <div class="form-group">
+                <label for="vendor_description">Vendor Description</label>
+                <input type="text" id="vendor_description" name="vendor_description"
+                       value="{{ spare_part.vendor_description or '' }}"
+                       placeholder="Enter vendor description">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="storage_location">Storage Location</label>
+                    <input type="text" id="storage_location" name="storage_location"
+                           value="{{ spare_part.storage_location or '' }}"
+                           placeholder="e.g., Warehouse A">
+                </div>
+
+                <div class="form-group">
+                    <label for="storage_bin">Storage Bin</label>
+                    <input type="text" id="storage_bin" name="storage_bin"
+                           value="{{ spare_part.storage_bin or '' }}"
+                           placeholder="e.g., A-01-03">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="rounding_value">Rounding Value (Reorder Point)</label>
+                    <input type="number" id="rounding_value" name="rounding_value"
+                           value="{{ spare_part.rounding_value or '' }}"
+                           min="0" placeholder="e.g., 10">
+                </div>
+
+                <div class="form-group">
+                    <label for="maximum_stock">Maximum Stock</label>
+                    <input type="number" id="maximum_stock" name="maximum_stock"
+                           value="{{ spare_part.maximum_stock or '' }}"
+                           min="0" placeholder="e.g., 100">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    &#10003; Save Changes
+                </button>
+                <a href="{{ url_for('spare_parts.change_select') }}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

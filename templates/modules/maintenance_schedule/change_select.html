@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Select Schedule to Change - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('maintenance_schedules.index') }}" class="btn btn-back">
+            &#8592; Back to Maintenance Schedule
+        </a>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header">
+            <span style="font-size: 2.5rem;">&#9998;</span>
+            <h1>Select Schedule to Change</h1>
+            <p class="list-subtitle">Click on a schedule to edit it</p>
+        </div>
+
+        {% if schedules %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Equipment</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for schedule in schedules %}
+                <tr>
+                    <td>{{ schedule.name }}</td>
+                    <td>{{ schedule.equipment_tag }}</td>
+                    <td>{{ schedule.schedule_type|title }}</td>
+                    <td>
+                        <span class="status-badge {% if schedule.status == 'Active' %}status-active{% else %}status-inactive{% endif %}">
+                            {{ schedule.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('maintenance_schedules.change', schedule_id=schedule.id) }}" class="btn btn-sm btn-warning">
+                            Edit
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; color: #7f8c8d; padding: 2rem;">
+            No schedules found.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+.status-active {
+    background-color: #48bb78;
+    color: white;
+}
+.status-inactive {
+    background-color: #a0aec0;
+    color: white;
+}
+</style>
+{% endblock %}

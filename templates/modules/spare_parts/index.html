@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Spare Parts - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('main.home') }}" class="btn btn-back">
+            &#8592; Back to Home
+        </a>
+    </div>
+
+    <div class="module-content">
+        <span style="font-size: 4rem; margin-bottom: 1rem;">&#128295;</span>
+        <h1>Spare Parts</h1>
+        <p class="description">Manage spare parts inventory and master data</p>
+
+        <div class="module-actions">
+            <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-module">
+                <span class="btn-icon">&#128203;</span>
+                <span class="btn-text">Inventory Report / Spare Parts List</span>
+            </a>
+            <a href="{{ url_for('spare_parts.master_data') }}" class="btn btn-module">
+                <span class="btn-icon">&#128451;</span>
+                <span class="btn-text">Master Data</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

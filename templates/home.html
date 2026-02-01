@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block body_class %}home-page{% endblock %}
+
+{% block title %}Home - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="home-container">
+    <div class="welcome-section">
+        <h1>Welcome, {{ current_user.username }}!</h1>
+        <p>Select a module to get started</p>
+    </div>
+
+    <div class="module-grid">
+        <a href="{{ url_for('spare_parts.index') }}" class="module-btn">
+            <span class="module-icon">&#128295;</span>
+            <span class="module-label">Spare Parts</span>
+        </a>
+
+        <a href="{{ url_for('equipment.index') }}" class="module-btn">
+            <span class="module-icon">&#9881;</span>
+            <span class="module-label">Equipment</span>
+        </a>
+
+        <a href="{{ url_for('work_orders.index') }}" class="module-btn">
+            <span class="module-icon">&#128203;</span>
+            <span class="module-label">Work Orders</span>
+        </a>
+
+        <a href="{{ url_for('location.index') }}" class="module-btn">
+            <span class="module-icon">&#128205;</span>
+            <span class="module-label">Location</span>
+        </a>
+
+        <a href="{{ url_for('main.maintenance_schedule') }}" class="module-btn">
+            <span class="module-icon">&#128197;</span>
+            <span class="module-label">Maintenance Schedule</span>
+        </a>
+
+        <a href="{{ url_for('main.orders') }}" class="module-btn">
+            <span class="module-icon">&#128230;</span>
+            <span class="module-label">Orders</span>
+        </a>
+
+        <a href="{{ url_for('main.reports') }}" class="module-btn">
+            <span class="module-icon">&#128200;</span>
+            <span class="module-label">Reports</span>
+        </a>
+
+        <a href="{{ url_for('main.organization') }}" class="module-btn">
+            <span class="module-icon">&#128101;</span>
+            <span class="module-label">Organization</span>
+        </a>
+    </div>
+</div>
+{% endblock %}
