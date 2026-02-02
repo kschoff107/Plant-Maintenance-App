@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Set Initial Costs - Spare Parts{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-back">
+            &#8592; Back to Inventory
+        </a>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <span style="font-size: 2.5rem;">&#128178;</span>
+            <h1>Set Initial Costs</h1>
+            <p class="description">Enter current moving average prices for spare parts with existing inventory</p>
+        </div>
+
+        {% if parts %}
+        <form method="POST" class="data-form">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Part #</th>
+                            <th>Description</th>
+                            <th style="width: 120px;">Qty on Hand</th>
+                            <th style="width: 150px;">Initial MAP ($)</th>
+                            <th style="width: 150px;">Total Value ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for part in parts %}
+                        <tr>
+                            <td>{{ part['id'] }}</td>
+                            <td>{{ part['description'] }}</td>
+                            <td>{{ part['quantity_available'] }}</td>
+                            <td>
+                                <input type="number"
+                                       name="map_{{ part['id'] }}"
+                                       id="map_{{ part['id'] }}"
+                                       step="0.01"
+                                       min="0"
+                                       placeholder="0.00"
+                                       class="cost-input"
+                                       onchange="calculateTotal({{ part['id'] }}, {{ part['quantity_available'] }})"
+                                       style="width: 100%; padding: 0.3rem;">
+                            </td>
+                            <td>
+                                <span id="total_{{ part['id'] }}" style="font-weight: bold;">$0.00</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="form-actions" style="margin-top: 2rem;">
+                <button type="submit" class="btn btn-success">
+                    &#10003; Save Initial Costs
+                </button>
+                <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+
+        <script>
+            function calculateTotal(partId, quantity) {
+                const mapInput = document.getElementById('map_' + partId);
+                const totalSpan = document.getElementById('total_' + partId);
+                const mapValue = parseFloat(mapInput.value) || 0;
+                const total = mapValue * quantity;
+                totalSpan.textContent = '$' + total.toFixed(2);
+            }
+        </script>
+
+        {% else %}
+        <div class="info-message" style="text-align: center; padding: 2rem;">
+            <p style="font-size: 1.2rem; color: #28a745;">&#10004; All spare parts with inventory already have costs set!</p>
+            <p style="margin-top: 1rem;">
+                <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-primary">
+                    View Inventory
+                </a>
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

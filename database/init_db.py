@@ -50,6 +50,18 @@ def init_database():
     except:
         pass  # Column already exists
 
+    # Add moving_average_price column if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE spare_parts ADD COLUMN moving_average_price REAL DEFAULT 0')
+    except:
+        pass  # Column already exists
+
+    # Add total_inventory_value column if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE spare_parts ADD COLUMN total_inventory_value REAL DEFAULT 0')
+    except:
+        pass  # Column already exists
+
     # Create equipment table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS equipment (
@@ -126,6 +138,12 @@ def init_database():
             FOREIGN KEY (transacted_by) REFERENCES users (id)
         )
     ''')
+
+    # Add cost_per_unit column to work_order_parts if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE work_order_parts ADD COLUMN cost_per_unit REAL DEFAULT 0')
+    except:
+        pass  # Column already exists
 
     # Create maintenance_schedules table
     cursor.execute('''
@@ -264,6 +282,12 @@ def init_database():
             FOREIGN KEY (received_by) REFERENCES users(id)
         )
     ''')
+
+    # Add unit_price column to gr_receipts if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE gr_receipts ADD COLUMN unit_price REAL DEFAULT 0')
+    except:
+        pass  # Column already exists
 
     # Add closed_at and closed_by columns to purchase_orders if they don't exist
     try:
