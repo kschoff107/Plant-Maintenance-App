@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Financial/Spend Analysis - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <!-- Header -->
+    <div class="report-header">
+        <a href="{{ url_for('order_reports.index') }}" class="btn btn-back">
+            &#8592; Back to Order Reports
+        </a>
+        <h1>Financial/Spend Analysis</h1>
+        <p class="report-subtitle">Purchase Order Spending Analysis by Vendor</p>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="date-range-selector">
+        <form method="GET" action="{{ url_for('order_reports.spend_analysis') }}" id="periodForm">
+            <div class="period-options">
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_30"
+                           {% if period == 'last_30' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 30 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_90"
+                           {% if period == 'last_90' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 90 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="current_month"
+                           {% if period == 'current_month' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Current Month</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="custom"
+                           {% if period == 'custom' %}checked{% endif %}
+                           onchange="toggleCustomDates(true)">
+                    <span>Custom Range</span>
+                </label>
+            </div>
+            <div class="custom-date-inputs" id="customDates" style="{% if period != 'custom' %}display: none;{% endif %}">
+                <label>
+                    Start Date:
+                    <input type="date" name="start_date" value="{{ start_date }}" required>
+                </label>
+                <label>
+                    End Date:
+                    <input type="date" name="end_date" value="{{ end_date }}" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+        </form>
+        <div class="current-period">
+            <strong>Period:</strong> {{ period_label }}
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="summary-cards">
+        <div class="summary-card card-total">
+            <div class="card-label">Total Spend</div>
+            <div class="card-value">${{ "{:,.2f}".format(summary.total_spend) }}</div>
+            <div class="card-subtitle">All Orders</div>
+        </div>
+        <div class="summary-card card-info">
+            <div class="card-label">Average PO Value</div>
+            <div class="card-value">${{ "{:,.2f}".format(summary.avg_po_value) }}</div>
+            <div class="card-subtitle">Per Order</div>
+        </div>
+        <div class="summary-card card-success">
+            <div class="card-label">Total POs</div>
+            <div class="card-value">{{ summary.total_pos }}</div>
+            <div class="card-subtitle">Purchase Orders</div>
+        </div>
+    </div>
+
+    <!-- Vendor Spend Table -->
+    <div class="report-table-container">
+        <h2>Spend by Vendor</h2>
+        {% if vendors %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Vendor Name</th>
+                    <th class="numeric">Total Spend</th>
+                    <th class="numeric"># of POs</th>
+                    <th class="numeric">Avg PO Value</th>
+                    <th class="numeric">% of Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vendor in vendors %}
+                <tr>
+                    <td class="vendor-name">{{ vendor.vendor_name }}</td>
+                    <td class="numeric currency">${{ "{:,.2f}".format(vendor.total_spend) }}</td>
+                    <td class="numeric">{{ vendor.po_count }}</td>
+                    <td class="numeric currency">${{ "{:,.2f}".format(vendor.avg_po_value) }}</td>
+                    <td class="numeric percentage">{{ vendor.percentage }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">No purchase orders found for the selected period.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+/* Report Container */
+.report-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+/* Header */
+.report-header {
+    margin-bottom: 2rem;
+}
+
+.report-header h1 {
+    margin: 1rem 0 0.5rem 0;
+    color: var(--text-color);
+    font-size: 2rem;
+}
+
+.report-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Date Range Selector */
+.date-range-selector {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.period-options {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.period-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.period-option:hover {
+    border-color: var(--primary);
+    background: #f0f9ff;
+}
+
+.period-option input[type="radio"] {
+    cursor: pointer;
+}
+
+.period-option input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.custom-date-inputs {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.custom-date-inputs label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+.custom-date-inputs input[type="date"] {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.current-period {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+/* Summary Cards */
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    border-top: 4px solid;
+}
+
+.summary-card.card-total {
+    border-top-color: #3b82f6;
+}
+
+.summary-card.card-success {
+    border-top-color: #10b981;
+}
+
+.summary-card.card-info {
+    border-top-color: #6366f1;
+}
+
+.card-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.card-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1;
+}
+
+.card-subtitle {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+/* Report Table */
+.report-table-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.report-table-container h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    color: var(--text-color);
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.report-table thead {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.report-table th {
+    text-align: left;
+    padding: 0.75rem 0.5rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.report-table th.numeric {
+    text-align: right;
+}
+
+.report-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.report-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.report-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.report-table td {
+    padding: 0.75rem 0.5rem;
+    color: #1f2937;
+}
+
+.report-table td.numeric {
+    text-align: right;
+    font-weight: 500;
+}
+
+.report-table td.currency {
+    font-family: 'Courier New', monospace;
+}
+
+.report-table td.percentage {
+    color: #059669;
+    font-weight: 600;
+}
+
+.vendor-name {
+    font-weight: 500;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.no-data {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem;
+    font-style: italic;
+}
+</style>
+
+<script>
+function toggleCustomDates(show) {
+    const customDates = document.getElementById('customDates');
+    if (show) {
+        customDates.style.display = 'flex';
+    } else {
+        customDates.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
