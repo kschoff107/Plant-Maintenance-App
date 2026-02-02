@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+
+{% block title %}PO Delivery Performance - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <!-- Header -->
+    <div class="report-header">
+        <a href="{{ url_for('order_reports.index') }}" class="btn btn-back">
+            &#8592; Back to Order Reports
+        </a>
+        <h1>PO Delivery Performance</h1>
+        <p class="report-subtitle">Purchase Order On-Time Delivery Analysis</p>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="date-range-selector">
+        <form method="GET" action="{{ url_for('order_reports.delivery_performance') }}" id="periodForm">
+            <div class="period-options">
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_30"
+                           {% if period == 'last_30' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 30 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_90"
+                           {% if period == 'last_90' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 90 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="current_month"
+                           {% if period == 'current_month' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Current Month</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="custom"
+                           {% if period == 'custom' %}checked{% endif %}
+                           onchange="toggleCustomDates(true)">
+                    <span>Custom Range</span>
+                </label>
+            </div>
+            <div class="custom-date-inputs" id="customDates" style="{% if period != 'custom' %}display: none;{% endif %}">
+                <label>
+                    Start Date:
+                    <input type="date" name="start_date" value="{{ start_date }}" required>
+                </label>
+                <label>
+                    End Date:
+                    <input type="date" name="end_date" value="{{ end_date }}" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+        </form>
+        <div class="current-period">
+            <strong>Period:</strong> {{ period_label }}
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="summary-cards">
+        <div class="summary-card card-total">
+            <div class="card-label">Total POs Received</div>
+            <div class="card-value">{{ summary.total_pos }}</div>
+            <div class="card-subtitle">Purchase Orders</div>
+        </div>
+        <div class="summary-card card-success">
+            <div class="card-label">On Time</div>
+            <div class="card-value">{{ summary.on_time_count }}</div>
+            <div class="card-subtitle">{{ summary.on_time_percentage }}%</div>
+        </div>
+        <div class="summary-card card-warning">
+            <div class="card-label">Late</div>
+            <div class="card-value">{{ summary.late_count }}</div>
+            <div class="card-subtitle">{{ (100 - summary.on_time_percentage)|round(1) }}%</div>
+        </div>
+        <div class="summary-card card-info">
+            <div class="card-label">Avg Days to First Receipt</div>
+            <div class="card-value">{{ summary.avg_days_to_first_receipt }}</div>
+            <div class="card-subtitle">Calendar Days</div>
+        </div>
+        <div class="summary-card card-info">
+            <div class="card-label">Avg Days to Complete</div>
+            <div class="card-value">{{ summary.avg_days_to_complete }}</div>
+            <div class="card-subtitle">Calendar Days</div>
+        </div>
+    </div>
+
+    <!-- Purchase Orders Table -->
+    <div class="report-table-container">
+        <h2>Purchase Order Details</h2>
+        {% if purchase_orders %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>PO Number</th>
+                    <th>Vendor</th>
+                    <th>Created Date</th>
+                    <th>Expected Delivery Date</th>
+                    <th>First Receipt Date</th>
+                    <th>Completed Date</th>
+                    <th>Days to First Receipt</th>
+                    <th>Days to Complete</th>
+                    <th>Delivery Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for po in purchase_orders %}
+                <tr>
+                    <td class="po-number">
+                        <a href="{{ url_for('orders.view_detail', po_id=po.id) }}">
+                            {{ po.po_number }}
+                        </a>
+                    </td>
+                    <td class="vendor-name">{{ po.vendor_name }}</td>
+                    <td>{{ po.created_at }}</td>
+                    <td>{{ po.expected_delivery_date }}</td>
+                    <td>{{ po.first_receipt_date }}</td>
+                    <td>{{ po.completed_at }}</td>
+                    <td class="numeric">{{ po.days_to_first_receipt }}</td>
+                    <td class="numeric">{{ po.days_to_complete }}</td>
+                    <td>
+                        <span class="status-badge status-{{ po.status_class }}">
+                            {{ po.status_label }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">No purchase orders with goods receipts found for the selected period.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+/* Report Container */
+.report-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+/* Header */
+.report-header {
+    margin-bottom: 2rem;
+}
+
+.report-header h1 {
+    margin: 1rem 0 0.5rem 0;
+    color: var(--text-color);
+    font-size: 2rem;
+}
+
+.report-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Date Range Selector */
+.date-range-selector {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.period-options {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.period-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.period-option:hover {
+    border-color: var(--primary);
+    background: #f0f9ff;
+}
+
+.period-option input[type="radio"] {
+    cursor: pointer;
+}
+
+.period-option input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.custom-date-inputs {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.custom-date-inputs label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+.custom-date-inputs input[type="date"] {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.current-period {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+/* Summary Cards */
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    border-top: 4px solid;
+}
+
+.summary-card.card-total {
+    border-top-color: #3b82f6;
+}
+
+.summary-card.card-success {
+    border-top-color: #10b981;
+}
+
+.summary-card.card-warning {
+    border-top-color: #f59e0b;
+}
+
+.summary-card.card-info {
+    border-top-color: #6366f1;
+}
+
+.card-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.card-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1;
+}
+
+.card-subtitle {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+/* Report Table */
+.report-table-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    overflow-x: auto;
+}
+
+.report-table-container h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    color: var(--text-color);
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.report-table thead {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.report-table th {
+    text-align: left;
+    padding: 0.75rem 0.5rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.report-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.report-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.report-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.report-table td {
+    padding: 0.75rem 0.5rem;
+    color: #1f2937;
+}
+
+.report-table td.numeric {
+    text-align: center;
+    font-weight: 500;
+}
+
+.po-number a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.po-number a:hover {
+    text-decoration: underline;
+}
+
+.vendor-name {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.priority-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.priority-urgent {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.priority-high {
+    background: #fed7aa;
+    color: #9a3412;
+}
+
+.priority-normal {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.priority-low {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-on-time {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-late {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.no-data {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem;
+    font-style: italic;
+}
+</style>
+
+<script>
+function toggleCustomDates(show) {
+    const customDates = document.getElementById('customDates');
+    if (show) {
+        customDates.style.display = 'flex';
+    } else {
+        customDates.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
