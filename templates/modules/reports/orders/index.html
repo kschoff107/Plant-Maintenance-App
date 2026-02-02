@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Order Reports - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="module-container">
+    <div class="module-header">
+        <a href="{{ url_for('reports.index') }}" class="btn btn-back">
+            &#8592; Back to Reports
+        </a>
+    </div>
+
+    <div class="module-content">
+        <span style="font-size: 4rem; margin-bottom: 1rem;">&#128230;</span>
+        <h1>Order Reports</h1>
+        <p class="description">View purchase order and inventory reports</p>
+
+        <div class="module-actions">
+            <!-- Report types will be added here -->
+            <p style="text-align: center; color: #6b7280; margin-top: 2rem;">
+                Report types coming soon...
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

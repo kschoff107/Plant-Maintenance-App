@@ -4,7 +4,8 @@ from config import Config
 from database.init_db import init_database
 from routes import (auth_bp, main_bp, spare_parts_bp, equipment_bp, location_bp,
                     work_orders_bp, maintenance_schedules_bp, meter_readings_bp,
-                    orders_bp, master_data_bp, vendors_bp, get_user_by_id)
+                    orders_bp, master_data_bp, vendors_bp, reports_bp,
+                    maintenance_reports_bp, order_reports_bp, get_user_by_id)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -32,6 +33,9 @@ app.register_blueprint(meter_readings_bp)
 app.register_blueprint(orders_bp)
 app.register_blueprint(master_data_bp)
 app.register_blueprint(vendors_bp)
+app.register_blueprint(reports_bp)
+app.register_blueprint(maintenance_reports_bp)
+app.register_blueprint(order_reports_bp)
 
 # Initialize database on startup
 with app.app_context():
