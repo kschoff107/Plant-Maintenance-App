@@ -173,11 +173,6 @@ def maintenance_schedule():
 def orders():
     return redirect(url_for('orders.index'))
 
-@main_bp.route('/reports')
-@login_required
-def reports():
-    return render_template('modules/reports.html', module_name='Reports')
-
 @main_bp.route('/organization')
 @login_required
 def organization():

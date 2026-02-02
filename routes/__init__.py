@@ -9,3 +9,6 @@ from .meter_readings import meter_readings_bp
 from .orders import orders_bp
 from .master_data import master_data_bp
 from .vendors import vendors_bp
+from .reports import reports_bp
+from .maintenance_reports import maintenance_reports_bp
+from .order_reports import order_reports_bp
