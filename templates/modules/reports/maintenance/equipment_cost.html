@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Cost Report - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <!-- Header -->
+    <div class="report-header">
+        <a href="{{ url_for('maintenance_reports.index') }}" class="btn btn-back">
+            &#8592; Back to Maintenance Reports
+        </a>
+        <h1>Equipment Cost Report</h1>
+        <p class="report-subtitle">Maintenance Spare Parts Cost Analysis by Equipment</p>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="date-range-selector">
+        <form method="GET" action="{{ url_for('maintenance_reports.equipment_cost') }}" id="periodForm">
+            <div class="period-options">
+                <label class="period-option">
+                    <input type="radio" name="period" value="all_time"
+                           {% if period == 'all_time' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>All Time</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_30"
+                           {% if period == 'last_30' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 30 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_90"
+                           {% if period == 'last_90' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 90 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="current_year"
+                           {% if period == 'current_year' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Current Year</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="custom"
+                           {% if period == 'custom' %}checked{% endif %}
+                           onchange="toggleCustomDates(true)">
+                    <span>Custom Range</span>
+                </label>
+            </div>
+            <div class="custom-date-inputs" id="customDates" style="{% if period != 'custom' %}display: none;{% endif %}">
+                <label>
+                    Start Date:
+                    <input type="date" name="start_date" required>
+                </label>
+                <label>
+                    End Date:
+                    <input type="date" name="end_date" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+        </form>
+        <div class="current-period">
+            <strong>Period:</strong> {{ period_label }}
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="summary-cards">
+        <div class="summary-card card-total">
+            <div class="card-label">Equipment Tracked</div>
+            <div class="card-value">{{ summary.total_equipment }}</div>
+            <div class="card-subtitle">with Parts Cost</div>
+        </div>
+        <div class="summary-card card-warning">
+            <div class="card-label">Total Parts Cost</div>
+            <div class="card-value">${{ "{:,.0f}".format(summary.total_cost) }}</div>
+            <div class="card-subtitle">All Equipment</div>
+        </div>
+        <div class="summary-card card-info">
+            <div class="card-label">Average per Equipment</div>
+            <div class="card-value">${{ "{:,.0f}".format(summary.avg_cost_per_equipment) }}</div>
+            <div class="card-subtitle">Mean Cost</div>
+        </div>
+    </div>
+
+    <!-- Equipment Cost Table -->
+    <div class="report-table-container">
+        <h2>Equipment Cost Breakdown</h2>
+        {% if equipment %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tag Number</th>
+                    <th>Description</th>
+                    <th>Manufacturer</th>
+                    <th>Model</th>
+                    <th>Work Orders</th>
+                    <th>Parts Issued</th>
+                    <th>Total Cost</th>
+                    <th>Avg Cost/WO</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for equip in equipment %}
+                <tr onclick="openEquipmentModal({{ equip.id }}, '{{ equip.tag_number }}', '{{ equip.description }}')" style="cursor: pointer;">
+                    <td class="numeric">{{ equip.id }}</td>
+                    <td class="equipment-tag">{{ equip.tag_number }}</td>
+                    <td class="equipment-desc">{{ equip.description }}</td>
+                    <td>{{ equip.manufacturer }}</td>
+                    <td>{{ equip.model_number }}</td>
+                    <td class="numeric">{{ equip.work_order_count }}</td>
+                    <td class="numeric">{{ equip.parts_issued_count }}</td>
+                    <td class="cost-value">${{ "{:,.2f}".format(equip.total_parts_cost) }}</td>
+                    <td class="cost-avg">${{ "{:,.2f}".format(equip.avg_cost_per_wo) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">No equipment costs found for the selected period.</p>
+        {% endif %}
+    </div>
+
+    <!-- Equipment Drill-Down Modal -->
+    <div id="equipmentModal" class="modal" style="display: none;">
+        <div class="modal-content-large">
+            <div class="modal-header">
+                <div>
+                    <h3 id="modalEquipmentTitle">Equipment Cost Breakdown</h3>
+                    <p id="modalEquipmentSubtitle" style="margin: 0; color: #6b7280; font-size: 0.875rem;"></p>
+                </div>
+                <span class="modal-close" onclick="closeEquipmentModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Loading indicator -->
+                <div id="modalLoading" style="text-align: center; padding: 2rem;">
+                    <p>Loading work order details...</p>
+                </div>
+
+                <!-- Summary Cards -->
+                <div id="modalSummary" style="display: none;">
+                    <div class="summary-cards" style="margin-bottom: 1.5rem;">
+                        <div class="summary-card card-total">
+                            <div class="card-label">Work Orders</div>
+                            <div class="card-value" id="summaryWoCount">0</div>
+                        </div>
+                        <div class="summary-card card-warning">
+                            <div class="card-label">Total Cost</div>
+                            <div class="card-value" id="summaryTotalCost">$0</div>
+                        </div>
+                        <div class="summary-card card-info">
+                            <div class="card-label">Avg per WO</div>
+                            <div class="card-value" id="summaryAvgCost">$0</div>
+                        </div>
+                    </div>
+
+                    <!-- Work Orders Table -->
+                    <table class="report-table" id="workOrdersTable">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable(0)" style="cursor: pointer;">WO Number ▼</th>
+                                <th onclick="sortTable(1)" style="cursor: pointer;">Title</th>
+                                <th onclick="sortTable(2)" style="cursor: pointer;">Date</th>
+                                <th onclick="sortTable(3)" style="cursor: pointer; text-align: right;">Total Cost</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="workOrdersTableBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEquipmentModal()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Report Container */
+.report-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+/* Header */
+.report-header {
+    margin-bottom: 2rem;
+}
+
+.report-header h1 {
+    margin: 1rem 0 0.5rem 0;
+    color: var(--text-color);
+    font-size: 2rem;
+}
+
+.report-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Date Range Selector */
+.date-range-selector {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.period-options {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.period-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.period-option:hover {
+    border-color: var(--primary);
+    background: #f0f9ff;
+}
+
+.period-option input[type="radio"] {
+    cursor: pointer;
+}
+
+.period-option input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.custom-date-inputs {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.custom-date-inputs label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+.custom-date-inputs input[type="date"] {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.current-period {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+/* Summary Cards */
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    border-top: 4px solid;
+}
+
+.summary-card.card-total {
+    border-top-color: #3b82f6;
+}
+
+.summary-card.card-success {
+    border-top-color: #10b981;
+}
+
+.summary-card.card-warning {
+    border-top-color: #f59e0b;
+}
+
+.summary-card.card-info {
+    border-top-color: #6366f1;
+}
+
+.card-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.card-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1;
+}
+
+.card-subtitle {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+/* Report Table */
+.report-table-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.report-table-container h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    color: var(--text-color);
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.report-table thead {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.report-table th {
+    text-align: left;
+    padding: 0.75rem 0.5rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.report-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.report-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.report-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.report-table td {
+    padding: 0.75rem 0.5rem;
+    color: #1f2937;
+}
+
+.report-table td.numeric {
+    text-align: center;
+    font-weight: 500;
+}
+
+.equipment-tag {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.equipment-desc {
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cost-value {
+    font-weight: 600;
+    color: #dc2626;
+    text-align: right;
+}
+
+.cost-avg {
+    text-align: right;
+    color: #4b5563;
+}
+
+.no-data {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem;
+    font-style: italic;
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content-large {
+    background-color: #fff;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.modal-close {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #7f8c8d;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: #2c3e50;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+
+/* Expandable Parts Row */
+.parts-row {
+    background-color: #f9fafb;
+}
+
+.parts-row td {
+    padding: 0 !important;
+}
+
+.parts-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+}
+
+.parts-table th {
+    background-color: #f3f4f6;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    text-align: left;
+    color: #6b7280;
+}
+
+.parts-table td {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.parts-table tr:last-child td {
+    border-bottom: none;
+}
+
+.expand-icon {
+    cursor: pointer;
+    user-select: none;
+    font-size: 1.2rem;
+    transition: transform 0.2s;
+}
+
+.expand-icon.expanded {
+    transform: rotate(90deg);
+}
+</style>
+
+<script>
+function toggleCustomDates(show) {
+    const customDates = document.getElementById('customDates');
+    if (show) {
+        customDates.style.display = 'flex';
+    } else {
+        customDates.style.display = 'none';
+    }
+}
+
+let currentEquipmentData = null;
+let currentSortColumn = 2; // Default: Date column
+let currentSortAsc = false; // Default: descending (newest first)
+
+function openEquipmentModal(equipmentId, tagNumber, description) {
+    // Show modal
+    document.getElementById('equipmentModal').style.display = 'flex';
+
+    // Set title
+    document.getElementById('modalEquipmentTitle').textContent = `Equipment Cost Breakdown`;
+    document.getElementById('modalEquipmentSubtitle').textContent = `${tagNumber} - ${description}`;
+
+    // Show loading, hide summary
+    document.getElementById('modalLoading').style.display = 'block';
+    document.getElementById('modalSummary').style.display = 'none';
+
+    // Get current period filter
+    const urlParams = new URLSearchParams(window.location.search);
+    const period = urlParams.get('period') || 'all_time';
+    const startDate = urlParams.get('start_date') || '';
+    const endDate = urlParams.get('end_date') || '';
+
+    // Build query string
+    let queryString = `?period=${period}`;
+    if (period === 'custom' && startDate && endDate) {
+        queryString += `&start_date=${startDate}&end_date=${endDate}`;
+    }
+
+    // Fetch data
+    fetch(`/reports/maintenance/equipment-work-orders/${equipmentId}${queryString}`)
+        .then(response => response.json())
+        .then(data => {
+            currentEquipmentData = data;
+            renderWorkOrders();
+
+            // Update summary
+            document.getElementById('summaryWoCount').textContent = data.summary.total_work_orders;
+            document.getElementById('summaryTotalCost').textContent = `$${data.summary.total_cost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('summaryAvgCost').textContent = `$${data.summary.avg_cost_per_wo.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            // Hide loading, show summary
+            document.getElementById('modalLoading').style.display = 'none';
+            document.getElementById('modalSummary').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching work order details:', error);
+            document.getElementById('modalLoading').innerHTML = '<p style="color: #dc2626;">Error loading data. Please try again.</p>';
+        });
+}
+
+function closeEquipmentModal() {
+    document.getElementById('equipmentModal').style.display = 'none';
+    currentEquipmentData = null;
+}
+
+function renderWorkOrders() {
+    if (!currentEquipmentData) return;
+
+    const tbody = document.getElementById('workOrdersTableBody');
+    tbody.innerHTML = '';
+
+    // Sort data
+    const sorted = [...currentEquipmentData.work_orders].sort((a, b) => {
+        let valA, valB;
+
+        switch(currentSortColumn) {
+            case 0: // WO Number
+                valA = a.work_order_number;
+                valB = b.work_order_number;
+                break;
+            case 1: // Title
+                valA = a.title.toLowerCase();
+                valB = b.title.toLowerCase();
+                break;
+            case 2: // Date
+                valA = new Date(a.date);
+                valB = new Date(a.date);
+                break;
+            case 3: // Cost
+                valA = a.total_cost;
+                valB = b.total_cost;
+                break;
+            default:
+                return 0;
+        }
+
+        if (valA < valB) return currentSortAsc ? -1 : 1;
+        if (valA > valB) return currentSortAsc ? 1 : -1;
+        return 0;
+    });
+
+    // Render rows
+    sorted.forEach((wo, index) => {
+        // Main work order row
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><a href="/work-orders/view/${wo.id}" style="color: var(--primary); text-decoration: none;">${wo.work_order_number}</a></td>
+            <td>${wo.title}</td>
+            <td>${wo.date}</td>
+            <td style="text-align: right; font-weight: 600;">$${wo.total_cost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td style="text-align: center;">
+                <span class="expand-icon" onclick="toggleParts(${index})">▶</span>
+            </td>
+        `;
+        tbody.appendChild(tr);
+
+        // Parts detail row (hidden initially)
+        const partsTr = document.createElement('tr');
+        partsTr.className = 'parts-row';
+        partsTr.id = `parts-row-${index}`;
+        partsTr.style.display = 'none';
+        partsTr.innerHTML = `
+            <td colspan="5">
+                <table class="parts-table">
+                    <thead>
+                        <tr>
+                            <th>Spare Part</th>
+                            <th style="text-align: center;">Quantity</th>
+                            <th style="text-align: right;">Avg Cost</th>
+                            <th style="text-align: right;">Total Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${wo.parts.map(part => `
+                            <tr>
+                                <td>${part.description}</td>
+                                <td style="text-align: center;">${part.quantity}</td>
+                                <td style="text-align: right;">$${part.avg_cost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                <td style="text-align: right; font-weight: 600;">$${part.total_cost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </td>
+        `;
+        tbody.appendChild(partsTr);
+    });
+}
+
+function toggleParts(index) {
+    const partsRow = document.getElementById(`parts-row-${index}`);
+    const icon = event.target;
+
+    if (partsRow.style.display === 'none') {
+        partsRow.style.display = 'table-row';
+        icon.classList.add('expanded');
+    } else {
+        partsRow.style.display = 'none';
+        icon.classList.remove('expanded');
+    }
+}
+
+function sortTable(columnIndex) {
+    if (currentSortColumn === columnIndex) {
+        currentSortAsc = !currentSortAsc;
+    } else {
+        currentSortColumn = columnIndex;
+        currentSortAsc = columnIndex === 2 ? false : true; // Date defaults to desc
+    }
+    renderWorkOrders();
+
+    // Update column headers
+    const headers = document.querySelectorAll('#workOrdersTable th');
+    headers.forEach((th, i) => {
+        if (i < 4) { // Only first 4 columns are sortable
+            const arrow = i === currentSortColumn ? (currentSortAsc ? ' ▲' : ' ▼') : '';
+            th.innerHTML = th.innerHTML.replace(/[▲▼]/g, '').trim() + arrow;
+        }
+    });
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('equipmentModal');
+    if (e.target === modal) {
+        closeEquipmentModal();
+    }
+});
+</script>
+{% endblock %}

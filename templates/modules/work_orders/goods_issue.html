@@ -80,10 +80,12 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Spare Part</th>
-                        <th>Storage Location</th>
+                        <th>Part</th>
+                        <th>Location</th>
                         <th>Bin</th>
-                        <th>Net Qty Issued</th>
+                        <th>Qty</th>
+                        <th>Unit Cost</th>
+                        <th>Total</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -94,6 +96,8 @@
                         <td>{{ part.storage_location or '-' }}</td>
                         <td>{{ part.storage_bin or '-' }}</td>
                         <td>{{ part.net_quantity }}</td>
+                        <td>${{ "%.2f"|format(part.avg_cost_per_unit or 0) }}</td>
+                        <td>${{ "%.2f"|format(part.total_cost or 0) }}</td>
                         <td>
                             <button type="button" class="btn btn-sm btn-warning" onclick="showReturnModal({{ part.spare_part_id }}, '{{ part.description }}', {{ part.net_quantity }})">
                                 Return
@@ -102,6 +106,15 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;">
+                        <td colspan="5" style="text-align: right; padding-right: 1rem;">Total Parts Cost:</td>
+                        <td style="color: #28a745;">
+                            ${{ "%.2f"|format(issued_parts|sum(attribute='total_cost') or 0) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
             {% else %}
             <p style="color: #7f8c8d; font-style: italic;">No parts have been issued to this work order yet.</p>

@@ -156,3 +156,51 @@ def change(part_id):
 
     conn.close()
     return render_template('modules/spare_parts/change.html', spare_part=spare_part)
+
+
+@spare_parts_bp.route('/set-initial-costs', methods=['GET', 'POST'])
+@login_required
+def set_initial_costs():
+    """One-time process to set initial costs for existing inventory"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        # Process submitted cost data
+        parts_updated = 0
+        for key, value in request.form.items():
+            if key.startswith('map_'):
+                part_id = int(key.split('_')[1])
+                initial_map = float(value) if value else 0
+
+                # Get current quantity
+                cursor.execute('SELECT quantity_available FROM spare_parts WHERE id = ?', (part_id,))
+                row = cursor.fetchone()
+                if row:
+                    qty = row['quantity_available'] or 0
+                    initial_value = qty * initial_map
+
+                    cursor.execute('''
+                        UPDATE spare_parts
+                        SET moving_average_price = ?,
+                            total_inventory_value = ?
+                        WHERE id = ?
+                    ''', (initial_map, initial_value, part_id))
+                    parts_updated += 1
+
+        conn.commit()
+        conn.close()
+        flash(f'Initial costs set for {parts_updated} spare parts.', 'success')
+        return redirect(url_for('spare_parts.inventory'))
+
+    # Get all parts with inventory but zero MAP
+    cursor.execute('''
+        SELECT id, description, quantity_available, moving_average_price
+        FROM spare_parts
+        WHERE quantity_available > 0 AND (moving_average_price IS NULL OR moving_average_price = 0)
+        ORDER BY description
+    ''')
+    parts = cursor.fetchall()
+    conn.close()
+
+    return render_template('modules/spare_parts/set_initial_cost.html', parts=parts)

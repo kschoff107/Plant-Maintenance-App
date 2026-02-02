@@ -184,21 +184,34 @@ def add():
                 part_id = int(part.get('id', 0))
                 qty = int(part.get('quantity', 0))
                 if part_id > 0 and qty > 0:
-                    # Check stock availability
-                    cursor.execute('SELECT quantity_available FROM spare_parts WHERE id = ?', (part_id,))
+                    # Get current MAP and inventory data
+                    cursor.execute('''
+                        SELECT quantity_available, moving_average_price, total_inventory_value
+                        FROM spare_parts WHERE id = ?
+                    ''', (part_id,))
                     sp_row = cursor.fetchone()
+
                     if sp_row and sp_row['quantity_available'] >= qty:
-                        # Deduct from inventory
+                        current_MAP = sp_row['moving_average_price'] or 0
+                        current_inv_value = sp_row['total_inventory_value'] or 0
+
+                        # Calculate new inventory value after issue (MAP stays same)
+                        new_inv_value = current_inv_value - (qty * current_MAP)
+
+                        # Deduct from inventory and update value
                         cursor.execute('''
-                            UPDATE spare_parts SET quantity_available = quantity_available - ?
+                            UPDATE spare_parts
+                            SET quantity_available = quantity_available - ?,
+                                total_inventory_value = ?
                             WHERE id = ?
-                        ''', (qty, part_id))
-                        # Insert transaction record
+                        ''', (qty, new_inv_value, part_id))
+
+                        # Insert transaction record WITH cost_per_unit
                         cursor.execute('''
                             INSERT INTO work_order_parts (work_order_id, spare_part_id, quantity,
-                                                          transaction_type, transacted_by)
-                            VALUES (?, ?, ?, 'issue', ?)
-                        ''', (wo_id, part_id, qty, current_user.id))
+                                                          transaction_type, transacted_by, cost_per_unit)
+                            VALUES (?, ?, ?, 'issue', ?, ?)
+                        ''', (wo_id, part_id, qty, current_user.id, current_MAP))
                         parts_issued += 1
 
             conn.commit()
@@ -388,21 +401,34 @@ def change(wo_id):
                     part_id = int(part.get('id', 0))
                     qty = int(part.get('quantity', 0))
                     if part_id > 0 and qty > 0:
-                        # Check stock availability
-                        cursor.execute('SELECT quantity_available FROM spare_parts WHERE id = ?', (part_id,))
+                        # Get current MAP and inventory data
+                        cursor.execute('''
+                            SELECT quantity_available, moving_average_price, total_inventory_value
+                            FROM spare_parts WHERE id = ?
+                        ''', (part_id,))
                         sp_row = cursor.fetchone()
+
                         if sp_row and sp_row['quantity_available'] >= qty:
-                            # Deduct from inventory
+                            current_MAP = sp_row['moving_average_price'] or 0
+                            current_inv_value = sp_row['total_inventory_value'] or 0
+
+                            # Calculate new inventory value after issue (MAP stays same)
+                            new_inv_value = current_inv_value - (qty * current_MAP)
+
+                            # Deduct from inventory and update value
                             cursor.execute('''
-                                UPDATE spare_parts SET quantity_available = quantity_available - ?
+                                UPDATE spare_parts
+                                SET quantity_available = quantity_available - ?,
+                                    total_inventory_value = ?
                                 WHERE id = ?
-                            ''', (qty, part_id))
-                            # Insert transaction record
+                            ''', (qty, new_inv_value, part_id))
+
+                            # Insert transaction record WITH cost_per_unit
                             cursor.execute('''
                                 INSERT INTO work_order_parts (work_order_id, spare_part_id, quantity,
-                                                              transaction_type, transacted_by)
-                                VALUES (?, ?, ?, 'issue', ?)
-                            ''', (wo_id, part_id, qty, current_user.id))
+                                                              transaction_type, transacted_by, cost_per_unit)
+                                VALUES (?, ?, ?, 'issue', ?, ?)
+                            ''', (wo_id, part_id, qty, current_user.id, current_MAP))
                             parts_issued += 1
 
             # If work order completed and linked to a maintenance schedule, advance the schedule
@@ -488,13 +514,16 @@ def get_all_spare_parts():
 
 
 def get_issued_parts_for_work_order(wo_id):
-    """Get all issued parts for a work order with net quantities"""
+    """Get all issued parts for a work order with net quantities and costs"""
     conn = get_connection()
     cursor = conn.cursor()
-    # Get net quantity per spare part (issues minus returns)
+    # Get net quantity per spare part (issues minus returns) with weighted average cost
     cursor.execute('''
         SELECT sp.id as spare_part_id, sp.description, sp.storage_location, sp.storage_bin,
-               SUM(CASE WHEN wop.transaction_type = 'issue' THEN wop.quantity ELSE -wop.quantity END) as net_quantity
+               SUM(CASE WHEN wop.transaction_type = 'issue' THEN wop.quantity ELSE -wop.quantity END) as net_quantity,
+               AVG(CASE WHEN wop.transaction_type = 'issue' THEN wop.cost_per_unit END) as avg_cost_per_unit,
+               SUM(CASE WHEN wop.transaction_type = 'issue' THEN wop.quantity * wop.cost_per_unit
+                        ELSE -wop.quantity * wop.cost_per_unit END) as total_cost
         FROM work_order_parts wop
         JOIN spare_parts sp ON wop.spare_part_id = sp.id
         WHERE wop.work_order_id = ?
@@ -579,18 +608,27 @@ def goods_issue(wo_id):
                 flash(f'Insufficient stock. Only {sp_row["quantity_available"]} available.', 'error')
             else:
                 try:
-                    # Deduct from inventory
-                    cursor.execute('''
-                        UPDATE spare_parts SET quantity_available = quantity_available - ?
-                        WHERE id = ?
-                    ''', (quantity, spare_part_id))
+                    # Get current MAP and inventory value
+                    current_MAP = sp_row['moving_average_price'] or 0
+                    current_inv_value = sp_row['total_inventory_value'] or 0
 
-                    # Insert transaction record
+                    # Calculate new inventory value after issue (MAP stays same)
+                    new_inv_value = current_inv_value - (quantity * current_MAP)
+
+                    # Deduct from inventory and update value
+                    cursor.execute('''
+                        UPDATE spare_parts
+                        SET quantity_available = quantity_available - ?,
+                            total_inventory_value = ?
+                        WHERE id = ?
+                    ''', (quantity, new_inv_value, spare_part_id))
+
+                    # Insert transaction record WITH cost_per_unit
                     cursor.execute('''
                         INSERT INTO work_order_parts (work_order_id, spare_part_id, quantity,
-                                                      transaction_type, transacted_by, notes)
-                        VALUES (?, ?, ?, 'issue', ?, ?)
-                    ''', (wo_id, spare_part_id, quantity, current_user.id, notes or None))
+                                                      transaction_type, transacted_by, notes, cost_per_unit)
+                        VALUES (?, ?, ?, 'issue', ?, ?, ?)
+                    ''', (wo_id, spare_part_id, quantity, current_user.id, notes or None, current_MAP))
 
                     conn.commit()
                     flash(f'Successfully issued {quantity} units of "{sp_row["description"]}".', 'success')
@@ -664,18 +702,44 @@ def goods_return(wo_id, part_id):
     sp_desc = sp_row['description'] if sp_row else 'Unknown'
 
     try:
+        # Calculate weighted average cost from all issues
+        cursor.execute('''
+            SELECT AVG(cost_per_unit) as avg_cost, SUM(quantity) as total_issued
+            FROM work_order_parts
+            WHERE work_order_id = ? AND spare_part_id = ? AND transaction_type = 'issue'
+        ''', (wo_id, part_id))
+        issue_summary = cursor.fetchone()
+        weighted_avg_cost = issue_summary['avg_cost'] if issue_summary and issue_summary['avg_cost'] else 0
+
+        # Get current inventory data
+        cursor.execute('''
+            SELECT quantity_available, moving_average_price, total_inventory_value
+            FROM spare_parts WHERE id = ?
+        ''', (part_id,))
+        sp_inv_row = cursor.fetchone()
+        current_qty = sp_inv_row['quantity_available'] or 0
+        current_inv_value = sp_inv_row['total_inventory_value'] or 0
+
+        # Calculate new values after return
+        new_qty = current_qty + quantity
+        new_inv_value = current_inv_value + (quantity * weighted_avg_cost)
+        new_MAP = new_inv_value / new_qty if new_qty > 0 else 0
+
         # Add back to inventory
         cursor.execute('''
-            UPDATE spare_parts SET quantity_available = quantity_available + ?
+            UPDATE spare_parts
+            SET quantity_available = ?,
+                total_inventory_value = ?,
+                moving_average_price = ?
             WHERE id = ?
-        ''', (quantity, part_id))
+        ''', (new_qty, new_inv_value, new_MAP, part_id))
 
-        # Insert return transaction record
+        # Insert return transaction record WITH cost_per_unit
         cursor.execute('''
             INSERT INTO work_order_parts (work_order_id, spare_part_id, quantity,
-                                          transaction_type, transacted_by, notes)
-            VALUES (?, ?, ?, 'return', ?, ?)
-        ''', (wo_id, part_id, quantity, current_user.id, notes or None))
+                                          transaction_type, transacted_by, notes, cost_per_unit)
+            VALUES (?, ?, ?, 'return', ?, ?, ?)
+        ''', (wo_id, part_id, quantity, current_user.id, notes or None, weighted_avg_cost))
 
         conn.commit()
         flash(f'Successfully returned {quantity} units of "{sp_desc}".', 'success')

@@ -419,22 +419,49 @@ def goods_receipt(po_id):
                         WHERE id = ?
                     ''', (new_received, final_delivery, line_id))
 
-                    # Log receipt in audit table
+                    # Log receipt in audit table (with unit_price for MAP calculations)
+                    unit_price = line_row['unit_price']
                     cursor.execute('''
                         INSERT INTO gr_receipts (purchase_order_line_id, quantity_received,
-                                                 final_delivery, received_by)
-                        VALUES (?, ?, ?, ?)
-                    ''', (line_id, receive_qty, final_delivery, current_user.id))
+                                                 final_delivery, received_by, unit_price)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (line_id, receive_qty, final_delivery, current_user.id, unit_price))
 
-                    # Update spare parts inventory
+                    # Update spare parts inventory with MAP calculation
                     spare_part_id = line_row['spare_part_id']
-                    current_stock = line_row['quantity_available'] or 0
-                    new_stock = current_stock + receive_qty
+                    current_qty = line_row['quantity_available'] or 0
+
+                    # Retrieve current MAP and inventory value
+                    cursor.execute('''
+                        SELECT moving_average_price, total_inventory_value
+                        FROM spare_parts WHERE id = ?
+                    ''', (spare_part_id,))
+                    sp_cost_row = cursor.fetchone()
+                    current_MAP = sp_cost_row['moving_average_price'] or 0
+                    current_inv_value = sp_cost_row['total_inventory_value'] or 0
+
+                    # Calculate new MAP
+                    if current_qty == 0:
+                        # Initial receipt - direct assignment
+                        new_MAP = unit_price
+                        new_inv_value = receive_qty * unit_price
+                    else:
+                        # Standard MAP calculation
+                        old_inv_value = current_qty * current_MAP
+                        new_receipt_value = receive_qty * unit_price
+                        new_qty = current_qty + receive_qty
+                        new_MAP = (old_inv_value + new_receipt_value) / new_qty
+                        new_inv_value = new_qty * new_MAP
+
+                    # Update spare parts with new values
+                    new_stock = current_qty + receive_qty
                     cursor.execute('''
                         UPDATE spare_parts
-                        SET quantity_available = ?
+                        SET quantity_available = ?,
+                            moving_average_price = ?,
+                            total_inventory_value = ?
                         WHERE id = ?
-                    ''', (new_stock, spare_part_id))
+                    ''', (new_stock, new_MAP, new_inv_value, spare_part_id))
 
                     # Check if all lines are complete (fully received OR final delivery)
                     cursor.execute('''
@@ -706,13 +733,38 @@ def reverse_receipt(po_id):
             WHERE id = ?
         ''', (new_received, new_final_delivery, line_id))
 
-        # Update spare parts inventory (reduce)
+        # Update spare parts inventory with MAP adjustment (reduce)
+        # Get unit_price from the purchase_order_line being reversed
+        original_unit_price = line_row['unit_price']
+
+        # Get current MAP and inventory value
+        cursor.execute('''
+            SELECT moving_average_price, total_inventory_value
+            FROM spare_parts WHERE id = ?
+        ''', (spare_part_id,))
+        sp_cost_row = cursor.fetchone()
+        current_MAP = sp_cost_row['moving_average_price'] or 0
+        current_inv_value = sp_cost_row['total_inventory_value'] or 0
+
+        # Calculate new values after reversal
         new_stock = current_stock - reverse_qty
+        removed_value = reverse_qty * original_unit_price
+        new_inv_value = current_inv_value - removed_value
+
+        if new_stock == 0:
+            new_MAP = 0
+            new_inv_value = 0
+        else:
+            new_MAP = new_inv_value / new_stock if new_stock > 0 else 0
+
+        # Update spare parts inventory with new cost data
         cursor.execute('''
             UPDATE spare_parts
-            SET quantity_available = ?
+            SET quantity_available = ?,
+                moving_average_price = ?,
+                total_inventory_value = ?
             WHERE id = ?
-        ''', (new_stock, spare_part_id))
+        ''', (new_stock, new_MAP, new_inv_value, spare_part_id))
 
         # Check if all lines are complete (fully received OR final delivery)
         cursor.execute('''
