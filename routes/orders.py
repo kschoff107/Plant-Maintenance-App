@@ -143,7 +143,7 @@ def create():
 @orders_bp.route('/open')
 @login_required
 def open_list():
-    """List all open purchase orders"""
+    """List all purchase orders"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -151,7 +151,6 @@ def open_list():
         FROM purchase_orders po
         LEFT JOIN vendors v ON po.vendor_id = v.id
         LEFT JOIN users u ON po.created_by = u.id
-        WHERE po.status NOT IN ('Received', 'Cancelled')
         ORDER BY po.created_at DESC
     ''')
     rows = cursor.fetchall()
@@ -209,7 +208,7 @@ def view_detail(po_id):
 @orders_bp.route('/change/<int:po_id>', methods=['GET', 'POST'])
 @login_required
 def change(po_id):
-    """Edit a purchase order (only if status is Open)"""
+    """Edit a purchase order"""
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -224,9 +223,9 @@ def change(po_id):
 
     purchase_order = PurchaseOrder.from_row(po_row)
 
-    if purchase_order.status != 'Open':
+    if purchase_order.status == 'Cancelled':
         conn.close()
-        flash('Only Open purchase orders can be edited.', 'error')
+        flash('Cancelled purchase orders cannot be edited.', 'error')
         return redirect(url_for('orders.view_detail', po_id=po_id))
 
     vendors = get_all_vendors()
@@ -384,17 +383,18 @@ def goods_receipt(po_id):
 
     purchase_order = PurchaseOrder.from_row(po_row)
 
-    if purchase_order.status in ['Received', 'Cancelled']:
+    if purchase_order.status == 'Cancelled':
         conn.close()
-        flash('Cannot receive goods for this purchase order.', 'error')
+        flash('Cannot receive goods for cancelled purchase orders.', 'error')
         return redirect(url_for('orders.view_detail', po_id=po_id))
 
     if request.method == 'POST':
         line_id = request.form.get('line_id', type=int)
         receive_qty = request.form.get('quantity', type=int, default=0)
+        final_delivery = 1 if request.form.get('final_delivery') else 0
 
-        if not line_id or receive_qty <= 0:
-            flash('Please enter a valid quantity to receive.', 'error')
+        if not line_id or (receive_qty <= 0 and final_delivery == 0):
+            flash('Please enter a valid quantity to receive or check Final Delivery.', 'error')
         else:
             # Get line item details
             cursor.execute('''
@@ -410,62 +410,80 @@ def goods_receipt(po_id):
                 ordered_qty = line_row['quantity']
                 remaining = ordered_qty - current_received
 
-                if receive_qty > remaining:
-                    flash(f'Cannot receive more than remaining quantity ({remaining}).', 'error')
-                else:
-                    try:
-                        # Update line item quantity_received
-                        new_received = current_received + receive_qty
+                try:
+                    # Update line item quantity_received and final_delivery
+                    new_received = current_received + receive_qty
+                    cursor.execute('''
+                        UPDATE purchase_order_lines
+                        SET quantity_received = ?, final_delivery = ?
+                        WHERE id = ?
+                    ''', (new_received, final_delivery, line_id))
+
+                    # Log receipt in audit table
+                    cursor.execute('''
+                        INSERT INTO gr_receipts (purchase_order_line_id, quantity_received,
+                                                 final_delivery, received_by)
+                        VALUES (?, ?, ?, ?)
+                    ''', (line_id, receive_qty, final_delivery, current_user.id))
+
+                    # Update spare parts inventory
+                    spare_part_id = line_row['spare_part_id']
+                    current_stock = line_row['quantity_available'] or 0
+                    new_stock = current_stock + receive_qty
+                    cursor.execute('''
+                        UPDATE spare_parts
+                        SET quantity_available = ?
+                        WHERE id = ?
+                    ''', (new_stock, spare_part_id))
+
+                    # Check if all lines are complete (fully received OR final delivery)
+                    cursor.execute('''
+                        SELECT COUNT(*) as total_lines,
+                               SUM(CASE
+                                   WHEN quantity_received >= quantity OR final_delivery = 1
+                                   THEN 1 ELSE 0
+                               END) as complete_lines
+                        FROM purchase_order_lines
+                        WHERE purchase_order_id = ?
+                    ''', (po_id,))
+                    result = cursor.fetchone()
+                    total_lines = result['total_lines']
+                    complete_lines = result['complete_lines']
+
+                    # Update PO status
+                    if complete_lines >= total_lines:
+                        new_status = 'Received'
+                    elif receive_qty > 0 or final_delivery == 1:
+                        new_status = 'Partially Received'
+                    else:
+                        new_status = purchase_order.status
+
+                    if new_status == 'Received' and purchase_order.status != 'Received':
+                        # Track PO closing event
                         cursor.execute('''
-                            UPDATE purchase_order_lines
-                            SET quantity_received = ?
+                            UPDATE purchase_orders
+                            SET status = ?, closed_at = CURRENT_TIMESTAMP, closed_by = ?
                             WHERE id = ?
-                        ''', (new_received, line_id))
-
-                        # Update spare parts inventory
-                        spare_part_id = line_row['spare_part_id']
-                        current_stock = line_row['quantity_available'] or 0
-                        new_stock = current_stock + receive_qty
+                        ''', (new_status, current_user.id, po_id))
+                    elif new_status != purchase_order.status:
                         cursor.execute('''
-                            UPDATE spare_parts
-                            SET quantity_available = ?
-                            WHERE id = ?
-                        ''', (new_stock, spare_part_id))
+                            UPDATE purchase_orders SET status = ? WHERE id = ?
+                        ''', (new_status, po_id))
 
-                        # Check if all lines are fully received
-                        cursor.execute('''
-                            SELECT SUM(quantity) as total_ordered,
-                                   SUM(quantity_received) as total_received
-                            FROM purchase_order_lines
-                            WHERE purchase_order_id = ?
-                        ''', (po_id,))
-                        totals = cursor.fetchone()
-                        total_ordered = totals['total_ordered'] or 0
-                        total_received = (totals['total_received'] or 0) + receive_qty
+                    conn.commit()
 
-                        # Update PO status
-                        if total_received >= total_ordered:
-                            new_status = 'Received'
-                        elif total_received > 0:
-                            new_status = 'Partially Received'
-                        else:
-                            new_status = purchase_order.status
-
-                        if new_status != purchase_order.status:
-                            cursor.execute('''
-                                UPDATE purchase_orders SET status = ? WHERE id = ?
-                            ''', (new_status, po_id))
-
-                        conn.commit()
+                    if receive_qty > 0:
                         flash(f'Received {receive_qty} unit(s). Inventory updated.', 'success')
+                    if final_delivery == 1 and receive_qty == 0:
+                        flash('Line marked as final delivery.', 'success')
 
-                        if new_status == 'Received':
-                            flash('Purchase order fully received.', 'info')
-                            conn.close()
-                            return redirect(url_for('orders.view_detail', po_id=po_id))
+                    if new_status == 'Received':
+                        flash('All items complete. Purchase order closed.', 'info')
+                        conn.close()
+                        return redirect(url_for('orders.view_detail', po_id=po_id))
 
-                    except Exception as e:
-                        flash(f'Error posting goods receipt: {str(e)}', 'error')
+                except Exception as e:
+                    flash(f'Error posting goods receipt: {str(e)}', 'error')
             else:
                 flash('Line item not found.', 'error')
 
@@ -489,3 +507,254 @@ def goods_receipt(po_id):
 
     return render_template('modules/orders/goods_receipt.html',
                            po=purchase_order, line_items=line_items)
+
+
+@orders_bp.route('/view/<int:po_id>/history')
+@login_required
+def po_history(po_id):
+    """Display PO history timeline"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get PO header
+    cursor.execute('''
+        SELECT po.*, u.username as created_by_name
+        FROM purchase_orders po
+        LEFT JOIN users u ON po.created_by = u.id
+        WHERE po.id = ?
+    ''', (po_id,))
+    po_row = cursor.fetchone()
+
+    if not po_row:
+        conn.close()
+        flash('Purchase order not found.', 'error')
+        return redirect(url_for('orders.open_list'))
+
+    # Get all events and combine into timeline
+    events = []
+
+    # 1. PO Opening event
+    events.append({
+        'type': 'opening',
+        'timestamp': po_row['created_at'],
+        'user': po_row['created_by_name'],
+        'data': {
+            'po_number': po_row['po_number'],
+            'status': 'Open'
+        }
+    })
+
+    # 2. Goods Receipt events
+    cursor.execute('''
+        SELECT gr.*, pol.spare_part_id, pol.quantity as ordered_qty,
+               sp.id as part_number, sp.description as part_description,
+               u.username as received_by_name
+        FROM gr_receipts gr
+        JOIN purchase_order_lines pol ON gr.purchase_order_line_id = pol.id
+        JOIN spare_parts sp ON pol.spare_part_id = sp.id
+        LEFT JOIN users u ON gr.received_by = u.id
+        WHERE pol.purchase_order_id = ?
+        ORDER BY gr.received_at
+    ''', (po_id,))
+
+    for row in cursor.fetchall():
+        events.append({
+            'type': 'receipt',
+            'timestamp': row['received_at'],
+            'user': row['received_by_name'],
+            'data': {
+                'part_number': row['part_number'],
+                'part_description': row['part_description'],
+                'quantity': row['quantity_received'],
+                'final_delivery': row['final_delivery'] == 1,
+                'ordered_qty': row['ordered_qty']
+            }
+        })
+
+    # 3. GR Reversal events
+    cursor.execute('''
+        SELECT grr.*, pol.spare_part_id,
+               sp.id as part_number, sp.description as part_description,
+               u.username as reversed_by_name
+        FROM gr_reversals grr
+        JOIN purchase_order_lines pol ON grr.purchase_order_line_id = pol.id
+        JOIN spare_parts sp ON pol.spare_part_id = sp.id
+        LEFT JOIN users u ON grr.reversed_by = u.id
+        WHERE pol.purchase_order_id = ?
+        ORDER BY grr.reversed_at
+    ''', (po_id,))
+
+    for row in cursor.fetchall():
+        events.append({
+            'type': 'reversal',
+            'timestamp': row['reversed_at'],
+            'user': row['reversed_by_name'],
+            'data': {
+                'part_number': row['part_number'],
+                'part_description': row['part_description'],
+                'quantity': row['quantity_reversed'],
+                'reason_code': row['reason_code'],
+                'reason_notes': row['reason_notes']
+            }
+        })
+
+    # 4. PO Closing event
+    if po_row['closed_at']:
+        cursor.execute('SELECT username FROM users WHERE id = ?', (po_row['closed_by'],))
+        closed_by_row = cursor.fetchone()
+        events.append({
+            'type': 'closing',
+            'timestamp': po_row['closed_at'],
+            'user': closed_by_row['username'] if closed_by_row else 'System',
+            'data': {
+                'status': 'Received'
+            }
+        })
+
+    # Sort all events by timestamp
+    events.sort(key=lambda x: x['timestamp'] if x['timestamp'] else '')
+
+    conn.close()
+    return render_template('modules/orders/po_history.html',
+                          po=po_row,
+                          events=events)
+
+
+@orders_bp.route('/view/<int:po_id>/reverse-receipt', methods=['POST'])
+@login_required
+def reverse_receipt(po_id):
+    """Reverse a goods receipt for a purchase order"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get PO header
+    cursor.execute('SELECT * FROM purchase_orders WHERE id = ?', (po_id,))
+    po_row = cursor.fetchone()
+
+    if po_row is None:
+        conn.close()
+        flash('Purchase order not found.', 'error')
+        return redirect(url_for('orders.open_list'))
+
+    purchase_order = PurchaseOrder.from_row(po_row)
+
+    if purchase_order.status == 'Cancelled':
+        conn.close()
+        flash('Cannot reverse receipt for cancelled purchase orders.', 'error')
+        return redirect(url_for('orders.view_detail', po_id=po_id))
+
+    line_id = request.form.get('line_id', type=int)
+    reverse_qty = request.form.get('reverse_quantity', type=int, default=0)
+    reason_code = request.form.get('reason_code', '').strip()
+    reason_notes = request.form.get('reason_notes', '').strip()
+
+    # Validation: Reason code required
+    if not reason_code:
+        conn.close()
+        flash('Reason code is required for reversals.', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    # Validation: If "Other" selected, notes required
+    if reason_code == 'Other' and not reason_notes:
+        conn.close()
+        flash('Please specify reason for "Other" selection.', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    if not line_id or reverse_qty <= 0:
+        flash('Please enter a valid quantity to reverse.', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    # Get line item details
+    cursor.execute('''
+        SELECT pol.*, sp.quantity_available
+        FROM purchase_order_lines pol
+        JOIN spare_parts sp ON pol.spare_part_id = sp.id
+        WHERE pol.id = ? AND pol.purchase_order_id = ?
+    ''', (line_id, po_id))
+    line_row = cursor.fetchone()
+
+    if not line_row:
+        conn.close()
+        flash('Line item not found.', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    current_received = line_row['quantity_received'] or 0
+    spare_part_id = line_row['spare_part_id']
+    current_stock = line_row['quantity_available'] or 0
+
+    # Validation: Cannot reverse more than received
+    if reverse_qty > current_received:
+        conn.close()
+        flash(f'Cannot reverse more than received quantity ({current_received}).', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    # Validation: Cannot reverse if it would make inventory negative
+    if reverse_qty > current_stock:
+        conn.close()
+        flash(f'Cannot reverse receipt. Insufficient inventory (current stock: {current_stock}).', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    try:
+        # Update line item quantity_received
+        new_received = current_received - reverse_qty
+        # Reset final_delivery if no longer fully received
+        new_final_delivery = 0 if new_received < line_row['quantity'] else line_row['final_delivery']
+
+        cursor.execute('''
+            UPDATE purchase_order_lines
+            SET quantity_received = ?, final_delivery = ?
+            WHERE id = ?
+        ''', (new_received, new_final_delivery, line_id))
+
+        # Update spare parts inventory (reduce)
+        new_stock = current_stock - reverse_qty
+        cursor.execute('''
+            UPDATE spare_parts
+            SET quantity_available = ?
+            WHERE id = ?
+        ''', (new_stock, spare_part_id))
+
+        # Check if all lines are complete (fully received OR final delivery)
+        cursor.execute('''
+            SELECT COUNT(*) as total_lines,
+                   SUM(CASE
+                       WHEN quantity_received >= quantity OR final_delivery = 1
+                       THEN 1 ELSE 0
+                   END) as complete_lines
+            FROM purchase_order_lines
+            WHERE purchase_order_id = ?
+        ''', (po_id,))
+        result = cursor.fetchone()
+        total_lines = result['total_lines']
+        complete_lines = result['complete_lines']
+
+        # Update PO status
+        if complete_lines >= total_lines:
+            new_status = 'Received'
+        elif new_received >= 0:
+            new_status = 'Partially Received'
+        else:
+            new_status = 'Sent'
+
+        if new_status != purchase_order.status:
+            cursor.execute('''
+                UPDATE purchase_orders SET status = ? WHERE id = ?
+            ''', (new_status, po_id))
+
+        # Log reversal in audit table
+        cursor.execute('''
+            INSERT INTO gr_reversals (purchase_order_line_id, quantity_reversed,
+                                      reason_code, reason_notes, reversed_by)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (line_id, reverse_qty, reason_code, reason_notes or None, current_user.id))
+
+        conn.commit()
+        flash(f'Reversed {reverse_qty} unit(s). Inventory reduced.', 'success')
+
+    except Exception as e:
+        conn.close()
+        flash(f'Error reversing goods receipt: {str(e)}', 'error')
+        return redirect(url_for('orders.goods_receipt', po_id=po_id))
+
+    conn.close()
+    return redirect(url_for('orders.goods_receipt', po_id=po_id))

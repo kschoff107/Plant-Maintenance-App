@@ -24,10 +24,12 @@
             <div class="filter-options">
                 <label class="filter-label">Status:</label>
                 <select id="statusFilter" class="filter-select">
-                    <option value="all">All Open</option>
+                    <option value="all">All Statuses</option>
                     <option value="Open">Open</option>
                     <option value="Sent">Sent</option>
                     <option value="Partially Received">Partially Received</option>
+                    <option value="Received">Received (Closed)</option>
+                    <option value="Cancelled">Cancelled</option>
                 </select>
             </div>
             <div class="search-results">
@@ -64,7 +66,7 @@
                         </td>
                         <td>
                             <a href="{{ url_for('orders.view_detail', po_id=po.id) }}" class="btn btn-small">View</a>
-                            {% if po.status == 'Open' %}
+                            {% if po.status != 'Cancelled' %}
                             <a href="{{ url_for('orders.change', po_id=po.id) }}" class="btn btn-small btn-warning">Edit</a>
                             {% endif %}
                         </td>
@@ -94,6 +96,14 @@
 }
 .status-po-partially-received {
     background-color: var(--warning);
+    color: white;
+}
+.status-po-received {
+    background-color: #48bb78;
+    color: white;
+}
+.status-po-cancelled {
+    background-color: #e53e3e;
     color: white;
 }
 </style>

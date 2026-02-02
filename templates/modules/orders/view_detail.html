@@ -8,6 +8,10 @@
         <a href="{{ url_for('orders.open_list') }}" class="btn btn-back">
             &#8592; Back to Open POs
         </a>
+        <a href="#" onclick="openHistoryModal({{ po.id }}); return false;"
+           class="btn btn-secondary" style="margin-left: 1rem;">
+            &#128197; Purchase Order History
+        </a>
     </div>
 
     <div class="detail-container" style="max-width: 900px;">
@@ -107,10 +111,8 @@
 
         <div class="detail-actions" style="gap: 1rem;">
             <a href="{{ url_for('orders.open_list') }}" class="btn btn-secondary">Back to List</a>
-            {% if po.status == 'Open' %}
+            {% if po.status != 'Cancelled' %}
             <a href="{{ url_for('orders.change', po_id=po.id) }}" class="btn btn-warning">Edit</a>
-            {% endif %}
-            {% if po.status not in ['Received', 'Cancelled'] %}
             <a href="{{ url_for('orders.goods_receipt', po_id=po.id) }}" class="btn btn-primary">
                 Post Goods Receipt
             </a>
@@ -152,5 +154,130 @@
 .row-partial:hover {
     background-color: #faf089 !important;
 }
+
+/* Modal Base Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 2rem;
+    border: 1px solid #888;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+/* PO History Modal Styles */
+.timeline-event {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid;
+    background-color: #f9fafb;
+    border-radius: 4px;
+}
+.timeline-event.event-opening {
+    border-left-color: var(--primary-light);
+    background-color: #dbeafe;
+}
+.timeline-event.event-receipt {
+    border-left-color: var(--success);
+    background-color: #d1fae5;
+}
+.timeline-event.event-reversal {
+    border-left-color: var(--error);
+    background-color: #fee2e2;
+}
+.timeline-event.event-closing {
+    border-left-color: var(--primary-dark);
+    background-color: #e0e7ff;
+}
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+.event-timestamp {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+.event-details {
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+.event-line-item {
+    margin-left: 1rem;
+    margin-top: 0.25rem;
+}
 </style>
+
+<!-- PO History Modal -->
+<div id="historyModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <span class="close" onclick="closeHistoryModal()">&times;</span>
+        <h2>Purchase Order History</h2>
+        <p class="detail-id">{{ po.po_number }}</p>
+
+        <div id="historyTimeline" style="margin-top: 1.5rem;">
+            <!-- Timeline loaded via AJAX -->
+        </div>
+    </div>
+</div>
+
+<script>
+function openHistoryModal(poId) {
+    fetch(`/orders/view/${poId}/history`)
+        .then(response => response.text())
+        .then(html => {
+            // Extract timeline content from response
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const timeline = doc.querySelector('.history-timeline-content');
+
+            if (timeline) {
+                document.getElementById('historyTimeline').innerHTML = timeline.innerHTML;
+            }
+
+            document.getElementById('historyModal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error loading history:', error);
+            alert('Failed to load purchase order history.');
+        });
+}
+
+function closeHistoryModal() {
+    document.getElementById('historyModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('historyModal');
+    if (event.target === modal) {
+        closeHistoryModal();
+    }
+});
+</script>
 {% endblock %}

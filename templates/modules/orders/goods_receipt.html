@@ -37,32 +37,51 @@
                 <tbody>
                     {% for line in line_items %}
                     {% set remaining = line.quantity - line.quantity_received %}
-                    <tr class="{% if remaining == 0 %}row-complete{% endif %}">
+                    <tr class="{% if remaining == 0 or line.final_delivery == 1 %}row-complete{% endif %}"
+                        data-ordered="{{ line.quantity }}" data-received="{{ line.quantity_received }}">
                         <td>{{ line.spare_part_number }}</td>
                         <td>{{ line.spare_part_description or '-' }}</td>
                         <td>{{ line.quantity }}</td>
                         <td>{{ line.quantity_received }}</td>
                         <td>
-                            {% if remaining > 0 %}
-                            <span style="color: var(--warning); font-weight: 600;">{{ remaining }}</span>
+                            {% set display_remaining = remaining if remaining > 0 else 0 %}
+                            {% if display_remaining > 0 and line.final_delivery != 1 %}
+                            <span style="color: var(--warning); font-weight: 600;">{{ display_remaining }}</span>
                             {% else %}
                             <span style="color: var(--success); font-weight: 600;">0</span>
                             {% endif %}
                         </td>
                         <td>{{ line.current_stock }}</td>
                         <td>
-                            {% if remaining > 0 %}
-                            <form method="POST" class="receive-form">
-                                <input type="hidden" name="line_id" value="{{ line.id }}">
-                                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="number" name="quantity" min="1" max="{{ remaining }}"
-                                           value="{{ remaining }}" style="width: 70px; padding: 0.25rem 0.5rem;">
-                                    <button type="submit" class="btn btn-small btn-primary">Receive</button>
-                                </div>
-                            </form>
-                            {% else %}
-                            <span class="status-badge status-ok">Complete</span>
-                            {% endif %}
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                {% if line.final_delivery != 1 %}
+                                <form method="POST" class="receive-form">
+                                    <input type="hidden" name="line_id" value="{{ line.id }}">
+                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start;">
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input type="number" name="quantity" min="0"
+                                                   value="0" style="width: 70px; padding: 0.25rem 0.5rem;">
+                                            <button type="submit" class="btn btn-small btn-primary">Receive</button>
+                                        </div>
+                                        <label class="final-delivery-checkbox">
+                                            <input type="checkbox" name="final_delivery" value="1"
+                                                   {% if line.quantity_received >= line.quantity or line.final_delivery == 1 %}checked{% endif %}
+                                                   {% if line.quantity_received >= line.quantity %}disabled{% endif %}>
+                                            Final Delivery
+                                        </label>
+                                    </div>
+                                </form>
+                                {% else %}
+                                <span class="status-badge status-ok">Complete</span>
+                                {% endif %}
+
+                                {% if line.quantity_received > 0 %}
+                                <button type="button" class="btn btn-small btn-danger"
+                                        onclick="openReverseModal({{ line.id }}, {{ line.quantity_received }}, '{{ line.spare_part_description|replace("'", "\\'") }}')">
+                                    Reverse
+                                </button>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -72,6 +91,64 @@
 
         <div class="form-actions" style="margin-top: 2rem;">
             <a href="{{ url_for('orders.view_detail', po_id=po.id) }}" class="btn btn-secondary">Back to PO</a>
+        </div>
+    </div>
+</div>
+
+<!-- Reverse Receipt Modal -->
+<div id="reverseModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeReverseModal()">&times;</span>
+        <h2>Reverse Goods Receipt</h2>
+        <p id="reverseItemInfo"></p>
+
+        <form method="POST" action="{{ url_for('orders.reverse_receipt', po_id=po.id) }}" id="reverseForm">
+            <input type="hidden" name="line_id" id="reverseLine">
+
+            <div class="form-group">
+                <label for="reverseQty">Quantity to Reverse:</label>
+                <input type="number" name="reverse_quantity" id="reverseQty"
+                       min="1" required class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="reasonCode">Reason for Reversal: <span style="color: red;">*</span></label>
+                <select name="reason_code" id="reasonCode" required class="form-control">
+                    <option value="">-- Select Reason --</option>
+                    <option value="Data Entry Error">Data Entry Error</option>
+                    <option value="Wrong Part Received">Wrong Part Received</option>
+                    <option value="Damaged Goods">Damaged Goods</option>
+                    <option value="Quality Rejection">Quality Rejection</option>
+                    <option value="Duplicate Receipt">Duplicate Receipt</option>
+                    <option value="Return to Vendor">Return to Vendor</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="otherReasonGroup" style="display: none;">
+                <label for="reasonNotes">Please specify:</label>
+                <textarea name="reason_notes" id="reasonNotes" rows="3"
+                          class="form-control"></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeReverseModal()">Cancel</button>
+                <button type="submit" class="btn btn-danger">Confirm Reversal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Over-Receipt Confirmation Modal -->
+<div id="overReceiptModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeOverReceiptModal()">&times;</span>
+        <h2 style="color: #f59e0b;">⚠️ Over-Receipt Warning</h2>
+        <p id="overReceiptInfo" style="font-size: 1rem; margin: 1.5rem 0;"></p>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeOverReceiptModal()">Cancel</button>
+            <button type="button" class="btn btn-warning" onclick="confirmOverReceipt()">Confirm Over-Receipt</button>
         </div>
     </div>
 </div>
@@ -102,5 +179,234 @@
 .receive-form {
     margin: 0;
 }
+.final-delivery-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    margin: 0;
+}
+.final-delivery-checkbox input[type="checkbox"] {
+    cursor: pointer;
+}
+.final-delivery-checkbox input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.reverse-form {
+    margin: 0;
+}
+.btn-danger {
+    background-color: #e53e3e;
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #c53030;
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 2rem;
+    border: 1px solid #888;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.close:hover,
+.close:focus {
+    color: #000;
+}
+.form-group {
+    margin-bottom: 1rem;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+.modal h2 {
+    margin-top: 0;
+    color: #333;
+}
+#reverseItemInfo {
+    color: #666;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+}
+.btn-warning {
+    background-color: #f59e0b;
+    color: white;
+}
+.btn-warning:hover {
+    background-color: #d97706;
+}
+#overReceiptInfo {
+    background-color: #fef3c7;
+    padding: 1rem;
+    border-radius: 4px;
+    border-left: 4px solid #f59e0b;
+}
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle quantity input changes to auto-check Final Delivery
+    document.querySelectorAll('input[name="quantity"]').forEach(input => {
+        input.addEventListener('input', function() {
+            const form = this.closest('form');
+            const checkbox = form.querySelector('input[name="final_delivery"]');
+            const row = this.closest('tr');
+            const orderedQty = parseInt(row.dataset.ordered);
+            const receivedQty = parseInt(row.dataset.received);
+            const inputQty = parseInt(this.value) || 0;
+
+            // Auto-check and disable if total received will equal or exceed ordered
+            if (receivedQty + inputQty >= orderedQty) {
+                checkbox.checked = true;
+                checkbox.disabled = true;
+            } else {
+                // Re-enable checkbox if not already disabled from previous receipt
+                if (receivedQty < orderedQty) {
+                    checkbox.disabled = false;
+                }
+            }
+        });
+    });
+
+    // Modal functions for reverse receipt
+    window.openReverseModal = function(lineId, maxQty, partDesc) {
+        document.getElementById('reverseLine').value = lineId;
+        document.getElementById('reverseQty').value = maxQty;
+        document.getElementById('reverseQty').max = maxQty;
+        document.getElementById('reverseItemInfo').textContent =
+            'Reversing: ' + partDesc + ' (Max: ' + maxQty + ' units)';
+        document.getElementById('reverseModal').style.display = 'block';
+    };
+
+    window.closeReverseModal = function() {
+        document.getElementById('reverseModal').style.display = 'none';
+        document.getElementById('reverseForm').reset();
+        document.getElementById('otherReasonGroup').style.display = 'none';
+    };
+
+    // Show/hide "Other" reason notes field
+    const reasonCodeSelect = document.getElementById('reasonCode');
+    if (reasonCodeSelect) {
+        reasonCodeSelect.addEventListener('change', function() {
+            const otherGroup = document.getElementById('otherReasonGroup');
+            const reasonNotes = document.getElementById('reasonNotes');
+
+            if (this.value === 'Other') {
+                otherGroup.style.display = 'block';
+                reasonNotes.required = true;
+            } else {
+                otherGroup.style.display = 'none';
+                reasonNotes.required = false;
+            }
+        });
+    }
+
+    // Over-receipt confirmation logic
+    let pendingReceiveForm = null;
+
+    window.closeOverReceiptModal = function() {
+        document.getElementById('overReceiptModal').style.display = 'none';
+        pendingReceiveForm = null;
+    };
+
+    window.confirmOverReceipt = function() {
+        if (pendingReceiveForm) {
+            // Set a flag to bypass the check on resubmission
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'confirm_over_receipt';
+            hiddenInput.value = '1';
+            pendingReceiveForm.appendChild(hiddenInput);
+
+            closeOverReceiptModal();
+            pendingReceiveForm.submit();
+        }
+    };
+
+    // Intercept receive form submissions
+    document.querySelectorAll('.receive-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            // Skip check if already confirmed
+            if (this.querySelector('input[name="confirm_over_receipt"]')) {
+                return true;
+            }
+
+            const row = this.closest('tr');
+            const orderedQty = parseInt(row.dataset.ordered);
+            const receivedQty = parseInt(row.dataset.received);
+            const inputQty = parseInt(this.querySelector('input[name="quantity"]').value) || 0;
+
+            const newTotal = receivedQty + inputQty;
+            const threshold = orderedQty * 1.10;
+
+            // Check if over-receipt exceeds 110%
+            if (newTotal > threshold) {
+                e.preventDefault();
+                pendingReceiveForm = this;
+
+                const excessQty = newTotal - orderedQty;
+                const infoText = `You are receiving ${excessQty} units more than ordered.\n\n` +
+                                `Ordered: ${orderedQty} units\n` +
+                                `Already Received: ${receivedQty} units\n` +
+                                `Trying to Receive: ${inputQty} units\n` +
+                                `New Total: ${newTotal} units\n\n` +
+                                `Do you want to proceed with this over-receipt?`;
+
+                document.getElementById('overReceiptInfo').textContent = infoText;
+                document.getElementById('overReceiptModal').style.display = 'block';
+            }
+        });
+    });
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const reverseModal = document.getElementById('reverseModal');
+        const overReceiptModal = document.getElementById('overReceiptModal');
+
+        if (event.target === reverseModal) {
+            closeReverseModal();
+        }
+        if (event.target === overReceiptModal) {
+            closeOverReceiptModal();
+        }
+    };
+});
+</script>
 {% endblock %}

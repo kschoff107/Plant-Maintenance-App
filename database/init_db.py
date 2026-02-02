@@ -230,6 +230,51 @@ def init_database():
     except:
         pass  # Column already exists
 
+    # Add final_delivery column if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE purchase_order_lines ADD COLUMN final_delivery INTEGER DEFAULT 0')
+    except:
+        pass  # Column already exists
+
+    # Create gr_reversals audit table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS gr_reversals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchase_order_line_id INTEGER NOT NULL,
+            quantity_reversed INTEGER NOT NULL,
+            reason_code TEXT NOT NULL,
+            reason_notes TEXT,
+            reversed_by INTEGER NOT NULL,
+            reversed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (purchase_order_line_id) REFERENCES purchase_order_lines(id),
+            FOREIGN KEY (reversed_by) REFERENCES users(id)
+        )
+    ''')
+
+    # Create gr_receipts audit table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS gr_receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchase_order_line_id INTEGER NOT NULL,
+            quantity_received INTEGER NOT NULL,
+            final_delivery INTEGER DEFAULT 0,
+            received_by INTEGER NOT NULL,
+            received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (purchase_order_line_id) REFERENCES purchase_order_lines(id),
+            FOREIGN KEY (received_by) REFERENCES users(id)
+        )
+    ''')
+
+    # Add closed_at and closed_by columns to purchase_orders if they don't exist
+    try:
+        cursor.execute('ALTER TABLE purchase_orders ADD COLUMN closed_at TIMESTAMP')
+    except:
+        pass  # Column already exists
+    try:
+        cursor.execute('ALTER TABLE purchase_orders ADD COLUMN closed_by INTEGER')
+    except:
+        pass  # Column already exists
+
     # Check if admin user exists, if not create default admin
     cursor.execute('SELECT id FROM users WHERE username = ?', ('Admin',))
     if cursor.fetchone() is None:

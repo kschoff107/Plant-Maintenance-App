@@ -51,10 +51,10 @@
                             <input type="checkbox" value="On Hold" checked> On Hold
                         </label>
                         <label class="multi-select-item">
-                            <input type="checkbox" value="Completed" checked> Completed
+                            <input type="checkbox" value="Completed"> Completed
                         </label>
                         <label class="multi-select-item">
-                            <input type="checkbox" value="Cancelled" checked> Cancelled
+                            <input type="checkbox" value="Cancelled"> Cancelled
                         </label>
                         <div class="multi-select-actions">
                             <button type="button" class="btn-select-all" id="selectAllStatus">Select All</button>
@@ -363,6 +363,10 @@ document.addEventListener('DOMContentLoaded', function() {
             sortTable(column, type);
         });
     });
+
+    // Apply initial filter on page load
+    updateStatusButtonText();
+    filterTable();
 });
 </script>
 {% endblock %}

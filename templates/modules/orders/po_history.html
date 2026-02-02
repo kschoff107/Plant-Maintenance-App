@@ -1,0 +1,70 @@
+<div class="history-timeline-content">
+    {% if events %}
+        {% for event in events %}
+        <div class="timeline-event event-{{ event.type }}">
+            <div class="event-header">
+                <span>
+                    {% if event.type == 'opening' %}
+                        📋 Purchase Order Created
+                    {% elif event.type == 'receipt' %}
+                        📦 Goods Receipt Posted
+                    {% elif event.type == 'reversal' %}
+                        ↩️ Goods Receipt Reversed
+                    {% elif event.type == 'closing' %}
+                        ✅ Purchase Order Closed
+                    {% endif %}
+                </span>
+                <span class="event-timestamp">{{ event.timestamp }}</span>
+            </div>
+
+            <div class="event-details">
+                <div><strong>User:</strong> {{ event.user or 'System' }}</div>
+
+                {% if event.type == 'opening' %}
+                    <div><strong>PO Number:</strong> {{ event.data.po_number }}</div>
+                    <div><strong>Initial Status:</strong> {{ event.data.status }}</div>
+
+                {% elif event.type == 'receipt' %}
+                    <div class="event-line-item">
+                        <strong>Part {{ event.data.part_number }}:</strong> {{ event.data.part_description }}
+                    </div>
+                    <div class="event-line-item">
+                        <strong>Quantity Received:</strong> {{ event.data.quantity }}
+                        {% if event.data.ordered_qty %}
+                        (Ordered: {{ event.data.ordered_qty }})
+                        {% endif %}
+                    </div>
+                    {% if event.data.final_delivery %}
+                    <div class="event-line-item">
+                        <span style="color: var(--success);">✓ Marked as Final Delivery</span>
+                    </div>
+                    {% endif %}
+
+                {% elif event.type == 'reversal' %}
+                    <div class="event-line-item">
+                        <strong>Part {{ event.data.part_number }}:</strong> {{ event.data.part_description }}
+                    </div>
+                    <div class="event-line-item">
+                        <strong>Quantity Reversed:</strong> {{ event.data.quantity }}
+                    </div>
+                    <div class="event-line-item">
+                        <strong>Reason:</strong> {{ event.data.reason_code }}
+                    </div>
+                    {% if event.data.reason_notes %}
+                    <div class="event-line-item">
+                        <strong>Notes:</strong> {{ event.data.reason_notes }}
+                    </div>
+                    {% endif %}
+
+                {% elif event.type == 'closing' %}
+                    <div><strong>Final Status:</strong> {{ event.data.status }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="text-align: center; color: #6b7280; padding: 2rem;">
+            No history available for this purchase order.
+        </p>
+    {% endif %}
+</div>
