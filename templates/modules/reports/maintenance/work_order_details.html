@@ -1,0 +1,757 @@
+{% extends "base.html" %}
+
+{% block title %}Work Order Details Report - Plant Maintenance{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <!-- Header -->
+    <div class="report-header">
+        <a href="{{ url_for('maintenance_reports.index') }}" class="btn btn-back">
+            &#8592; Back to Maintenance Reports
+        </a>
+        <h1>Work Order Details Report</h1>
+        <p class="report-subtitle">Comprehensive Work Order Analysis with Parts Cost</p>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="date-range-selector">
+        <form method="GET" action="{{ url_for('maintenance_reports.work_order_details') }}" id="periodForm">
+            <input type="hidden" name="schedule" value="{{ schedule_filter }}">
+            <div class="period-options">
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_30"
+                           {% if period == 'last_30' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 30 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="last_90"
+                           {% if period == 'last_90' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Last 90 Days</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="current_month"
+                           {% if period == 'current_month' %}checked{% endif %}
+                           onchange="toggleCustomDates(false); document.getElementById('periodForm').submit();">
+                    <span>Current Month</span>
+                </label>
+                <label class="period-option">
+                    <input type="radio" name="period" value="custom"
+                           {% if period == 'custom' %}checked{% endif %}
+                           onchange="toggleCustomDates(true)">
+                    <span>Custom Range</span>
+                </label>
+            </div>
+            <div class="custom-date-inputs" id="customDates" style="{% if period != 'custom' %}display: none;{% endif %}">
+                <label>
+                    Start Date:
+                    <input type="date" name="start_date" value="{{ start_date }}" required>
+                </label>
+                <label>
+                    End Date:
+                    <input type="date" name="end_date" value="{{ end_date }}" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+        </form>
+        <div class="current-period">
+            <strong>Period:</strong> {{ period_label }}
+        </div>
+    </div>
+
+    <!-- Advanced Filters -->
+    <div class="advanced-filters">
+        <form method="GET" action="{{ url_for('maintenance_reports.work_order_details') }}" id="filterForm">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="start_date" value="{{ start_date }}">
+            <input type="hidden" name="end_date" value="{{ end_date }}">
+
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label class="filter-label">Maintenance Schedule:</label>
+                    <select name="schedule" class="filter-select" onchange="document.getElementById('filterForm').submit();">
+                        <option value="all" {% if schedule_filter == 'all' %}selected{% endif %}>All Schedules</option>
+                        {% for schedule in schedules %}
+                        <option value="{{ schedule.id }}" {% if schedule_filter|string == schedule.id|string %}selected{% endif %}>
+                            {{ schedule.schedule_id }} - {{ schedule.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <a href="{{ url_for('maintenance_reports.work_order_details_export', period=period, start_date=start_date, end_date=end_date, schedule=schedule_filter) }}" class="btn btn-primary">
+                        <span>&#128190;</span> Export to CSV
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if work_orders %}
+    <!-- Client-Side Search/Filter Controls -->
+    <div class="search-filter-container">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search work orders..." class="search-input">
+        </div>
+        <div class="filter-options">
+            <label class="filter-label">Status:</label>
+            <div class="multi-select-dropdown" id="statusFilterContainer">
+                <button type="button" class="multi-select-btn" id="statusFilterBtn">
+                    All Statuses <span class="dropdown-arrow">&#9662;</span>
+                </button>
+                <div class="multi-select-menu" id="statusFilterMenu">
+                    <label class="multi-select-item">
+                        <input type="checkbox" value="Open" checked> Open
+                    </label>
+                    <label class="multi-select-item">
+                        <input type="checkbox" value="In Progress" checked> In Progress
+                    </label>
+                    <label class="multi-select-item">
+                        <input type="checkbox" value="On Hold" checked> On Hold
+                    </label>
+                    <label class="multi-select-item">
+                        <input type="checkbox" value="Completed" checked> Completed
+                    </label>
+                    <label class="multi-select-item">
+                        <input type="checkbox" value="Cancelled" checked> Cancelled
+                    </label>
+                    <div class="multi-select-actions">
+                        <button type="button" class="btn-select-all" id="selectAllStatus">Select All</button>
+                        <button type="button" class="btn-select-none" id="selectNoneStatus">Clear All</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-options">
+            <label class="filter-label">Priority:</label>
+            <select id="priorityFilter" class="filter-select">
+                <option value="all">All Priorities</option>
+                <option value="Emergency">Emergency</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
+        </div>
+        <div class="search-results">
+            <span id="resultCount">{{ work_orders|length }}</span> of {{ work_orders|length }} shown
+        </div>
+    </div>
+
+    <!-- Work Orders Table -->
+    <div class="table-responsive" style="overflow-x: auto;">
+        <table class="report-table sortable-table" id="workOrdersTable">
+            <thead>
+                <tr>
+                    <th class="sortable" data-column="0" data-type="string">WO Number <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="1" data-type="string">Title <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="2" data-type="string" style="max-width: 200px;">Description <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="3" data-type="string">Equipment Tag <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="4" data-type="string">Equipment Desc <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="5" data-type="string">Location <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="6" data-type="string">Priority <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="7" data-type="string">Status <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="8" data-type="string">Assigned To <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="9" data-type="string">Created By <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="10" data-type="string">Maint. Schedule <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="11" data-type="string">Created Date <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="12" data-type="string">Due Date <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="13" data-type="string">Completed Date <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="14" data-type="number">Total Parts Cost <span class="sort-icon">&#8597;</span></th>
+                    <th class="sortable" data-column="15" data-type="number">Parts Count <span class="sort-icon">&#8597;</span></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for wo in work_orders %}
+                <tr data-status="{{ wo.status }}" data-priority="{{ wo.priority }}">
+                    <td>{{ wo.work_order_number }}</td>
+                    <td>{{ wo.title }}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ wo.description }}">{{ wo.description }}</td>
+                    <td>{{ wo.equipment_tag }}</td>
+                    <td>{{ wo.equipment_desc }}</td>
+                    <td>{{ wo.location_code }}</td>
+                    <td><span class="priority-badge priority-{{ wo.priority|lower }}">{{ wo.priority }}</span></td>
+                    <td><span class="status-badge status-wo-{{ wo.status|lower|replace(' ', '-') }}">{{ wo.status }}</span></td>
+                    <td>{{ wo.assigned_to_name }}</td>
+                    <td>{{ wo.created_by_name }}</td>
+                    <td>{{ wo.maintenance_schedule_id }}{% if wo.maintenance_schedule_name != 'N/A' %} - {{ wo.maintenance_schedule_name }}{% endif %}</td>
+                    <td>{{ wo.created_at }}</td>
+                    <td>{{ wo.due_date }}</td>
+                    <td>{{ wo.completed_at }}</td>
+                    <td class="numeric">${{ "{:,.2f}".format(wo.total_parts_cost) }}</td>
+                    <td class="numeric">{{ wo.parts_count }}</td>
+                    <td>
+                        {% if wo.parts_count > 0 %}
+                        <button type="button" class="btn btn-small" onclick="openPartsModal({{ wo.id }}, '{{ wo.work_order_number }}', '{{ wo.title|replace("'", "\\'") }}')">
+                            View Parts
+                        </button>
+                        {% else %}
+                        <span style="color: #9ca3af;">No Parts</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="report-table-container">
+        <p class="no-data">No work orders found for the selected period and filters.</p>
+    </div>
+    {% endif %}
+
+    <!-- Parts Drill-Down Modal -->
+    <div id="partsModal" class="modal" style="display: none;">
+        <div class="modal-content-large">
+            <div class="modal-header">
+                <div>
+                    <h3 id="modalWoTitle">Work Order Parts Breakdown</h3>
+                    <p id="modalWoSubtitle" style="margin: 0; color: #6b7280; font-size: 0.875rem;"></p>
+                </div>
+                <span class="modal-close" onclick="closePartsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Loading indicator -->
+                <div id="modalLoading" style="text-align: center; padding: 2rem;">
+                    <p>Loading parts details...</p>
+                </div>
+
+                <!-- Parts Table -->
+                <div id="modalPartsContent" style="display: none;">
+                    <table class="report-table" id="partsTable">
+                        <thead>
+                            <tr>
+                                <th>Part Description</th>
+                                <th class="numeric">Quantity</th>
+                                <th class="numeric">Avg Cost</th>
+                                <th class="numeric">Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="partsTableBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight: bold; border-top: 2px solid #e5e7eb;">
+                                <td colspan="3" style="text-align: right;">Total:</td>
+                                <td class="numeric" id="modalTotalCost">$0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closePartsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Report Container */
+.report-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+/* Advanced Filters */
+.advanced-filters {
+    background: var(--background);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.filter-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Multi-Select Dropdown */
+.multi-select-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.multi-select-btn {
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--background-dark);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    min-width: 150px;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+}
+
+.multi-select-btn:hover {
+    border-color: var(--primary-light);
+}
+
+.dropdown-arrow {
+    margin-left: 0.5rem;
+    color: #6b7280;
+}
+
+.multi-select-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    min-width: 200px;
+    z-index: 1000;
+    margin-top: 0.25rem;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.multi-select-menu.show {
+    display: block;
+}
+
+.multi-select-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.multi-select-item:hover {
+    background-color: #f3f4f6;
+}
+
+.multi-select-item input[type="checkbox"] {
+    margin-right: 0.5rem;
+    cursor: pointer;
+}
+
+.multi-select-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn-select-all,
+.btn-select-none {
+    flex: 1;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-select-all:hover,
+.btn-select-none:hover {
+    background-color: #f3f4f6;
+}
+
+/* Table Responsive */
+.table-responsive {
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
+/* Excel-like Table Styling */
+.report-table {
+    min-width: 1800px;
+    border-collapse: collapse;
+    font-size: 0.813rem; /* Reduced font size (13px) */
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.report-table thead {
+    background: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.report-table th {
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.813rem;
+    white-space: nowrap;
+    background: #f8f9fa;
+}
+
+.report-table td {
+    border: 1px solid #dee2e6;
+    padding: 0.4rem 0.75rem;
+    color: #212529;
+    vertical-align: middle;
+}
+
+/* Alternating row colors (Excel-like zebra striping) */
+.report-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+.report-table tbody tr:nth-child(odd) {
+    background-color: white;
+}
+
+.report-table tbody tr:hover {
+    background-color: #e9ecef !important;
+}
+
+/* Compact badges for Priority and Status */
+.priority-badge,
+.status-badge {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+    font-weight: 500;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Description column styling */
+.report-table td[style*="max-width: 200px"] {
+    max-width: 200px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: help;
+}
+
+/* Sortable header styling */
+.report-table .sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.report-table .sortable:hover {
+    background-color: #e9ecef;
+}
+
+.sort-icon {
+    font-size: 0.7rem;
+    color: #6c757d;
+    margin-left: 0.25rem;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content-large {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-color);
+}
+
+.modal-close {
+    font-size: 2rem;
+    color: #9ca3af;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: #4b5563;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+}
+</style>
+
+<script>
+// Toggle custom date inputs
+function toggleCustomDates(show) {
+    const customDates = document.getElementById('customDates');
+    if (show) {
+        customDates.style.display = 'flex';
+    } else {
+        customDates.style.display = 'none';
+    }
+}
+
+// Multi-select dropdown functionality
+const statusBtn = document.getElementById('statusFilterBtn');
+const statusMenu = document.getElementById('statusFilterMenu');
+const statusCheckboxes = statusMenu.querySelectorAll('input[type="checkbox"]');
+
+statusBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    statusMenu.classList.toggle('show');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function() {
+    statusMenu.classList.remove('show');
+});
+
+statusMenu.addEventListener('click', function(e) {
+    e.stopPropagation();
+});
+
+// Select All / Clear All buttons
+document.getElementById('selectAllStatus').addEventListener('click', function() {
+    statusCheckboxes.forEach(cb => cb.checked = true);
+    updateStatusButtonText();
+    filterTable();
+});
+
+document.getElementById('selectNoneStatus').addEventListener('click', function() {
+    statusCheckboxes.forEach(cb => cb.checked = false);
+    updateStatusButtonText();
+    filterTable();
+});
+
+// Update status button text
+function updateStatusButtonText() {
+    const checkedCount = Array.from(statusCheckboxes).filter(cb => cb.checked).length;
+    const totalCount = statusCheckboxes.length;
+
+    if (checkedCount === 0) {
+        statusBtn.innerHTML = 'No Status Selected <span class="dropdown-arrow">&#9662;</span>';
+    } else if (checkedCount === totalCount) {
+        statusBtn.innerHTML = 'All Statuses <span class="dropdown-arrow">&#9662;</span>';
+    } else {
+        statusBtn.innerHTML = `${checkedCount} Status(es) <span class="dropdown-arrow">&#9662;</span>`;
+    }
+}
+
+// Filter table
+const searchInput = document.getElementById('searchInput');
+const priorityFilter = document.getElementById('priorityFilter');
+const tbody = document.querySelector('#workOrdersTable tbody');
+const resultCount = document.getElementById('resultCount');
+const totalCount = tbody.querySelectorAll('tr').length;
+
+function filterTable() {
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    const priority = priorityFilter.value;
+    const selectedStatuses = Array.from(statusCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+    const rows = tbody.querySelectorAll('tr');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowStatus = row.dataset.status;
+        const rowPriority = row.dataset.priority;
+
+        // Search match
+        let matchSearch = false;
+        if (searchTerm === '') {
+            matchSearch = true;
+        } else {
+            for (let i = 0; i < cells.length - 1; i++) {
+                if (cells[i].textContent.toLowerCase().includes(searchTerm)) {
+                    matchSearch = true;
+                    break;
+                }
+            }
+        }
+
+        // Status match
+        const matchStatus = selectedStatuses.length === 0 || selectedStatuses.includes(rowStatus);
+
+        // Priority match
+        const matchPriority = priority === 'all' || priority === rowPriority;
+
+        // Show row if all conditions match
+        const show = matchSearch && matchStatus && matchPriority;
+        row.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+    });
+
+    resultCount.textContent = visibleCount;
+}
+
+// Event listeners for filtering
+searchInput.addEventListener('input', filterTable);
+priorityFilter.addEventListener('change', filterTable);
+statusCheckboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+        updateStatusButtonText();
+        filterTable();
+    });
+});
+
+// Table sorting
+let currentSort = { column: null, direction: 'asc' };
+
+document.querySelectorAll('.sortable').forEach(header => {
+    header.addEventListener('click', function() {
+        const columnIndex = parseInt(this.dataset.column);
+        const dataType = this.dataset.type;
+        sortTable(columnIndex, dataType);
+    });
+});
+
+function sortTable(columnIndex, dataType) {
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    // Toggle direction
+    if (currentSort.column === columnIndex) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.column = columnIndex;
+        currentSort.direction = 'asc';
+    }
+
+    // Sort rows
+    rows.sort((a, b) => {
+        let aVal = a.querySelectorAll('td')[columnIndex].textContent.trim();
+        let bVal = b.querySelectorAll('td')[columnIndex].textContent.trim();
+
+        // Remove currency symbols and commas for numeric sorting
+        if (dataType === 'number') {
+            aVal = parseFloat(aVal.replace(/[$,]/g, '')) || 0;
+            bVal = parseFloat(bVal.replace(/[$,]/g, '')) || 0;
+        } else {
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+        }
+
+        if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Re-append rows in sorted order
+    rows.forEach(row => tbody.appendChild(row));
+
+    // Update sort icons
+    document.querySelectorAll('.sort-icon').forEach(icon => {
+        icon.textContent = '&#8597;';
+        icon.innerHTML = '&#8597;';
+    });
+
+    const activeIcon = document.querySelector(`[data-column="${columnIndex}"] .sort-icon`);
+    if (activeIcon) {
+        activeIcon.innerHTML = currentSort.direction === 'asc' ? '&#8593;' : '&#8595;';
+    }
+}
+
+// Parts modal functions
+function openPartsModal(workOrderId, woNumber, woTitle) {
+    const modal = document.getElementById('partsModal');
+    const loading = document.getElementById('modalLoading');
+    const content = document.getElementById('modalPartsContent');
+    const modalTitle = document.getElementById('modalWoTitle');
+    const modalSubtitle = document.getElementById('modalWoSubtitle');
+
+    // Show modal with loading state
+    modal.style.display = 'flex';
+    loading.style.display = 'block';
+    content.style.display = 'none';
+    modalTitle.textContent = 'Loading...';
+    modalSubtitle.textContent = '';
+
+    // Fetch parts data
+    fetch(`/reports/maintenance/work-order-parts/${workOrderId}`)
+        .then(response => response.json())
+        .then(data => {
+            modalTitle.textContent = `Work Order ${data.work_order_number} - ${data.title}`;
+            modalSubtitle.textContent = 'Parts Issued';
+
+            // Populate parts table
+            const tbody = document.getElementById('partsTableBody');
+            tbody.innerHTML = '';
+
+            data.parts.forEach(part => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${part.description}</td>
+                    <td class="numeric">${part.quantity}</td>
+                    <td class="numeric">$${part.avg_cost.toFixed(2)}</td>
+                    <td class="numeric">$${part.total_cost.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Update total
+            document.getElementById('modalTotalCost').textContent = `$${data.total_cost.toFixed(2)}`;
+
+            // Show content, hide loading
+            loading.style.display = 'none';
+            content.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error loading parts:', error);
+            modalTitle.textContent = 'Error';
+            modalSubtitle.textContent = 'Failed to load parts data';
+            loading.style.display = 'none';
+        });
+}
+
+function closePartsModal() {
+    document.getElementById('partsModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+document.getElementById('partsModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closePartsModal();
+    }
+});
+</script>
+{% endblock %}
