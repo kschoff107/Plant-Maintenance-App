@@ -187,7 +187,8 @@ def equipment_cost():
     query = f'''
         SELECT e.id, e.tag_number, e.description, e.manufacturer, e.model_number,
                COUNT(DISTINCT wo.id) as work_order_count,
-               COUNT(DISTINCT wop.id) as parts_issued_count,
+               COALESCE(SUM(CASE WHEN wop.transaction_type = 'issue' THEN wop.quantity
+                                 ELSE -wop.quantity END), 0) as parts_issued_count,
                SUM(CASE WHEN wop.transaction_type = 'issue' THEN wop.quantity * wop.cost_per_unit
                         ELSE -wop.quantity * wop.cost_per_unit END) as total_parts_cost
         FROM equipment e
